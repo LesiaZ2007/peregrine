@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Eye, Plane, Menu, X } from 'lucide-react';
+import { Eye, Menu, X } from 'lucide-react';
 
 const navLinks = [
   { href: '/', label: 'Search' },
@@ -34,13 +34,22 @@ export default function Nav() {
         {/* Logo */}
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           <div style={{
-            width: 34, height: 34,
-            background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+            width: 36, height: 36,
+            background: '#fff',
             borderRadius: 9,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(14,165,233,.4)',
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,.25)',
+            flexShrink: 0,
           }}>
-            <PeregrineFalcon />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="Peregrine falcon logo"
+              width={30}
+              height={30}
+              style={{ objectFit: 'contain' }}
+            />
           </div>
           <span style={{
             color: '#fff',
@@ -159,21 +168,3 @@ export default function Nav() {
   );
 }
 
-// Peregrine falcon icon (simplified SVG)
-function PeregrineFalcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M12 3C10 3 7 5 6 8L3 20L8 17L10 13L14 15L16 20L21 18L18 8C17 5 14 3 12 3Z"
-        fill="white"
-        fillOpacity="0.95"
-      />
-      <path
-        d="M12 3C13 4 14 6 13 8L10 13L8 11L10 8C10 6 11 4 12 3Z"
-        fill="white"
-        fillOpacity="0.5"
-      />
-      <circle cx="14" cy="6" r="1.2" fill="white" fillOpacity="0.9" />
-    </svg>
-  );
-}

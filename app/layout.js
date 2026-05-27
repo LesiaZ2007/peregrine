@@ -14,7 +14,9 @@ export const metadata = {
   description:
     "Smart flight search with price predictions, multi-destination comparison, layover discovery, and real-time price monitoring.",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/logo.png",
+    apple: "/logo.png",
+    shortcut: "/logo.png",
   },
 };
 
