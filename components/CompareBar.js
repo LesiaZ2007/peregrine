@@ -16,11 +16,12 @@ export default function CompareBar({ destinations = [], cheapestByDest = {} }) {
 
   return (
     <div style={{
-      position: 'sticky', top: 60, zIndex: 50,
       background: 'var(--navy)', color: '#fff',
       padding: '10px 20px',
       display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-      boxShadow: '0 4px 12px rgba(0,0,0,.2)',
+      boxShadow: '0 2px 8px rgba(0,0,0,.15)',
+      borderRadius: 'var(--r)',
+      marginBottom: 20,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.7)', flexShrink: 0 }}>
         <TrendingDown size={14} />

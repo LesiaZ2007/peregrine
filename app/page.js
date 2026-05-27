@@ -16,7 +16,7 @@ export default function HomePage() {
   const [tripType, setTripType] = useState('roundtrip');
   const [origins, setOrigins] = useState([]);
   const [destinations, setDestinations] = useState([]);
-  const [dates, setDates] = useState({ start: null, end: null, blackouts: new Set() });
+  const [dates, setDates] = useState({ earliestDep: null, latestReturn: null, durationDays: 7, blackouts: new Set() });
   const [passengers, setPassengers] = useState({ adults: 1, children: 0, infants: 0 });
   const [cabinClass, setCabinClass] = useState('Economy');
   const [budget, setBudget] = useState('');
@@ -29,10 +29,9 @@ export default function HomePage() {
 
   const validate = () => {
     const e = {};
-    if (origins.length === 0) e.origins = 'Select at least one departure airport';
+    if (origins.length === 0)      e.origins      = 'Select at least one departure airport';
     if (destinations.length === 0) e.destinations = 'Select at least one destination';
-    if (!dates.start) e.dates = 'Select travel dates';
-    if (tripType === 'roundtrip' && !dates.end) e.dates = 'Select a return date for round trip';
+    if (!dates.earliestDep)        e.dates        = 'Select when you can travel';
     return e;
   };
 
@@ -40,19 +39,23 @@ export default function HomePage() {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
     setErrors({});
+
+    const fmt = (d) => d instanceof Date ? d.toISOString().slice(0, 10) : (d || '');
+
     const params = new URLSearchParams({
-      origins: origins.map(o => o.code).join(','),
+      origins:      origins.map(o => o.code).join(','),
       destinations: destinations.map(d => d.code).join(','),
       tripType,
-      start: dates.start?.toISOString() || '',
-      end: dates.end?.toISOString() || '',
-      blackouts: [...dates.blackouts].join(','),
-      adults: passengers.adults,
-      children: passengers.children,
-      infants: passengers.infants,
-      cabin: cabinClass,
-      budget: budget || '',
-      layovers: [...layoverOpts].join(','),
+      earliestDep:  fmt(dates.earliestDep),
+      latestReturn: fmt(dates.latestReturn || dates.earliestDep),
+      duration:     dates.durationDays || 7,
+      blackouts:    [...(dates.blackouts || [])].join(','),
+      adults:       passengers.adults,
+      children:     passengers.children,
+      infants:      passengers.infants,
+      cabin:        cabinClass,
+      budget:       budget || '',
+      layovers:     [...layoverOpts].join(','),
     });
     router.push(`/results?${params.toString()}`);
   };
@@ -108,7 +111,7 @@ export default function HomePage() {
                 {errors.destinations && <div style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{errors.destinations}</div>}
               </div>
               <div>
-                <DateRangePicker value={dates} onChange={setDates} />
+                <DateRangePicker value={dates} onChange={setDates} tripType={tripType} />
                 {errors.dates && <div style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{errors.dates}</div>}
               </div>
             </div>

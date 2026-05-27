@@ -55,8 +55,12 @@ function ResultsContent() {
   const origins      = params.get('origins')?.split(',').filter(Boolean) || [];
   const destCodes    = params.get('destinations')?.split(',').filter(Boolean) || [];
   const tripType     = params.get('tripType') || 'roundtrip';
-  const start        = params.get('start') || '';
-  const end          = params.get('end') || '';
+  const earliestDep  = params.get('earliestDep') || params.get('start') || '';
+  const latestReturn = params.get('latestReturn') || params.get('end') || earliestDep;
+  const duration     = parseInt(params.get('duration') || '7');
+  const blackouts    = params.get('blackouts') || '';
+  // Flexible = different earliest/latest; single-date = same or only one set
+  const isFlexible   = !!(earliestDep && latestReturn && earliestDep !== latestReturn);
   const adults       = parseInt(params.get('adults') || '1');
   const cabin        = params.get('cabin') || 'Economy';
   const budget       = params.get('budget') || '';
@@ -68,6 +72,7 @@ function ResultsContent() {
   const [flights, setFlights] = useState({});         // { destCode: Flight[] }
   const [loading, setLoading] = useState(true);
   const [apiMissing, setApiMissing] = useState(false);
+  const [bestDates, setBestDates] = useState(null);  // { departureDate, returnDate } for flexible
   const [filterAirlines, setFilterAirlines] = useState(new Set());
   const [selectedAirlines, setSelectedAirlines] = useState(new Set());
   const [showFilters, setShowFilters] = useState(false);
@@ -76,40 +81,67 @@ function ResultsContent() {
 
   const fetchFlights = useCallback(async () => {
     setLoading(true);
-    const departureDate = start ? new Date(start).toISOString().slice(0, 10) : '';
-    const returnDate    = end   ? new Date(end).toISOString().slice(0, 10)   : '';
     const allFlights = {};
+    let overallBestDates = null;
 
     await Promise.allSettled(
       destCodes.map(async (dest) => {
         try {
-          const qs = new URLSearchParams({
-            origins: origins.join(','),
-            destination: dest,
-            departureDate,
-            ...(returnDate ? { returnDate } : {}),
-            adults,
-            cabin: cabin.toUpperCase().replace(' ', '_'),
-            max: 15,
-          });
-          const res = await fetch(`/api/flights/search?${qs}`);
-          const json = await res.json();
+          let res, json;
+
+          if (isFlexible) {
+            // Flexible date search
+            const qs = new URLSearchParams({
+              origins:      origins.join(','),
+              destination:  dest,
+              earliestDep,
+              latestReturn,
+              duration,
+              adults,
+              cabin:    cabin.toUpperCase().replace(' ', '_'),
+              blackouts,
+            });
+            res  = await fetch(`/api/flights/flexible?${qs}`);
+            json = await res.json();
+          } else {
+            // Fixed date search
+            const depDate = earliestDep;
+            const retDate = tripType !== 'oneway' ? latestReturn : '';
+            const qs = new URLSearchParams({
+              origins:      origins.join(','),
+              destination:  dest,
+              departureDate: depDate,
+              ...(retDate ? { returnDate: retDate } : {}),
+              adults,
+              cabin: cabin.toUpperCase().replace(' ', '_'),
+              max: 15,
+            });
+            res  = await fetch(`/api/flights/search?${qs}`);
+            json = await res.json();
+          }
 
           if (json.error === 'api_keys_missing') {
             setApiMissing(true);
-            // Fall back to mock
-            const mockAll = origins.flatMap(o => generateMockFlights(o, dest, departureDate, returnDate));
+            const dep = earliestDep;
+            const ret = tripType !== 'oneway' ? latestReturn : '';
+            const mockAll = origins.flatMap(o => generateMockFlights(o, dest, dep, ret));
             mockAll.sort((a, b) => a.price - b.price);
             allFlights[dest] = mockAll;
-            // Record mock prices in history
-            mockAll.slice(0, 3).forEach(f => recordPrice(f.origin, dest, f.price, tripType, departureDate));
+            mockAll.slice(0, 3).forEach(f => recordPrice(f.origin, dest, f.price, tripType, dep));
           } else if (json.data) {
             allFlights[dest] = json.data;
-            json.data.slice(0, 3).forEach(f => recordPrice(f.origin || origins[0], dest, f.price, tripType, departureDate));
+            if (json.bestDepartureDate && !overallBestDates) {
+              overallBestDates = { departureDate: json.bestDepartureDate, returnDate: json.bestReturnDate };
+            }
+            const depDate = json.data[0]?.flexDepartureDate || earliestDep;
+            json.data.slice(0, 3).forEach(f =>
+              recordPrice(f.origin || origins[0], dest, f.price, tripType, depDate)
+            );
           }
         } catch {
-          // Network error fallback
-          const mockAll = origins.flatMap(o => generateMockFlights(o, dest, departureDate, returnDate));
+          const dep = earliestDep;
+          const ret = tripType !== 'oneway' ? latestReturn : '';
+          const mockAll = origins.flatMap(o => generateMockFlights(o, dest, dep, ret));
           mockAll.sort((a, b) => a.price - b.price);
           allFlights[dest] = mockAll;
           setApiMissing(true);
@@ -118,11 +150,11 @@ function ResultsContent() {
     );
 
     setFlights(allFlights);
-    // Collect all airlines for filter
+    setBestDates(overallBestDates);
     const airlines = new Set(Object.values(allFlights).flat().map(f => f.airline).filter(Boolean));
     setFilterAirlines(airlines);
     setLoading(false);
-  }, [origins.join(','), destCodes.join(','), start, end, adults, cabin, tripType]);
+  }, [origins.join(','), destCodes.join(','), earliestDep, latestReturn, duration, adults, cabin, tripType, isFlexible]);
 
   useEffect(() => { fetchFlights(); }, [fetchFlights]);
 
@@ -135,21 +167,22 @@ function ResultsContent() {
   });
 
   const activeFlights = (flights[activeTab] || []).filter(f => selectedAirlines.size === 0 || selectedAirlines.has(f.airline));
-  const departureDate = start ? new Date(start) : null;
+  // Use best dates from flexible search if available, otherwise fall back to the search window
+  const effectiveDepDate = bestDates?.departureDate || earliestDep;
+  const departureDate = effectiveDepDate ? new Date(effectiveDepDate) : null;
 
   const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
   const sharePlan = {
-    origins, destinations: destCodes, tripType, start, end, adults, cabin, budget,
+    origins, destinations: destCodes, tripType,
+    earliestDep, latestReturn, duration,
+    adults, cabin, budget,
     layovers: [...interestingLayovers],
     searchedAt: new Date().toISOString(),
   };
 
   return (
     <div>
-      {/* CompareBar */}
-      <CompareBar destinations={destinations} cheapestByDest={cheapestByDest} />
-
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 20px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -161,7 +194,11 @@ function ResultsContent() {
               {origins.join(', ')} → {destCodes.join(', ')}
             </h1>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {formatDate(start)}{end ? ` → ${formatDate(end)}` : ''} · {adults} adult{adults > 1 ? 's' : ''} · {cabin}
+              {isFlexible
+                ? <>Flexible window: {formatDate(earliestDep)} – {formatDate(latestReturn)} · {duration} night{duration !== 1 ? 's' : ''}</>
+                : <>{formatDate(earliestDep)}{latestReturn && latestReturn !== earliestDep ? ` → ${formatDate(latestReturn)}` : ''}</>
+              }
+              {' '}· {adults} adult{adults > 1 ? 's' : ''} · {cabin}
               {tripType === 'roundtrip' ? ' · Round trip' : tripType === 'oneway' ? ' · One way' : ' · Multi-city'}
             </div>
           </div>
@@ -180,14 +217,36 @@ function ResultsContent() {
           </div>
         </div>
 
+        {/* CompareBar — inside content area so it doesn't overlap nav */}
+        <CompareBar destinations={destinations} cheapestByDest={cheapestByDest} />
+
+        {/* Best dates banner — shown when flexible search finds a cheapest window */}
+        {!loading && isFlexible && bestDates && (
+          <div style={{ padding: '12px 16px', background: 'var(--green-bg)', border: '1.5px solid rgba(16,185,129,.3)', borderRadius: 'var(--r)', marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 18 }}>✈️</span>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--green)' }}>Cheapest window found: </span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
+                Depart {formatDate(bestDates.departureDate)}
+                {bestDates.returnDate ? ` → Return ${formatDate(bestDates.returnDate)}` : ''}
+              </span>
+            </div>
+            {cheapestByDest[activeTab] && (
+              <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)' }}>
+                from ${cheapestByDest[activeTab].price?.toLocaleString()}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* API key notice */}
         {apiMissing && (
           <div style={{ padding: '12px 16px', background: 'var(--amber-bg)', border: '1.5px solid #fde68a', borderRadius: 'var(--r)', marginBottom: 20, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Key size={16} color="var(--amber)" style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--amber)' }}>Showing demo data — Amadeus API key needed for real flights</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--amber)' }}>Showing demo data — SerpAPI key needed for real flights</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                Copy <code style={{ background: 'var(--bg-2)', padding: '1px 5px', borderRadius: 4 }}>.env.local.example</code> to <code style={{ background: 'var(--bg-2)', padding: '1px 5px', borderRadius: 4 }}>.env.local</code> and add your Amadeus keys. See README for instructions.
+                Copy <code style={{ background: 'var(--bg-2)', padding: '1px 5px', borderRadius: 4 }}>.env.local.example</code> to <code style={{ background: 'var(--bg-2)', padding: '1px 5px', borderRadius: 4 }}>.env.local</code> and add your <code style={{ background: 'var(--bg-2)', padding: '1px 5px', borderRadius: 4 }}>SERPAPI_KEY</code>. See README for instructions.
               </div>
             </div>
           </div>
@@ -278,7 +337,7 @@ function ResultsContent() {
               const priceChange = getPriceChange(origin, dest, flight.price, tripType);
               const heuristic = dest && departureDate ? scoreFlight({
                 destCode: activeTab,
-                departureDate: start,
+                departureDate: effectiveDepDate,
                 currentPrice: flight.price,
                 priceHistory: history,
               }) : null;
@@ -287,7 +346,7 @@ function ResultsContent() {
                 <div key={flight.id} style={{ marginBottom: 12 }}>
                   <FlightCard
                     flight={flight}
-                    searchParams={{ origins, destinations: destCodes, tripType, start, end, adults, cabin, passengers: { adults } }}
+                    searchParams={{ origins, destinations: destCodes, tripType, earliestDep, latestReturn, duration, adults, cabin, passengers: { adults } }}
                     budget={budget}
                     heuristicResult={heuristic}
                     priceChange={priceChange}
@@ -309,7 +368,7 @@ function ResultsContent() {
                 const history = getHistory(origin, dest, tripType);
                 const heuristic = dest ? scoreFlight({
                   destCode: activeTab,
-                  departureDate: start,
+                  departureDate: effectiveDepDate,
                   currentPrice: activeFlights[0].price,
                   priceHistory: history,
                 }) : null;
