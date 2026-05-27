@@ -1,70 +1,17 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { MapPin, X, Sparkles, Search } from 'lucide-react';
+import { DESTINATIONS, SIMILAR_DESTINATIONS } from '@/lib/airports';
 
-// Curated destinations with groupings for suggestions
-const DESTINATIONS = [
-  // East Asia
-  { code: 'TYO', iata: 'NRT', name: 'Narita Intl', city: 'Tokyo', country: 'Japan', emoji: '🇯🇵', region: 'East Asia' },
-  { code: 'OSA', iata: 'KIX', name: 'Kansai Intl', city: 'Osaka', country: 'Japan', emoji: '🇯🇵', region: 'East Asia' },
-  { code: 'ICN', iata: 'ICN', name: 'Incheon Intl', city: 'Seoul', country: 'South Korea', emoji: '🇰🇷', region: 'East Asia' },
-  { code: 'PEK', iata: 'PEK', name: 'Capital Intl', city: 'Beijing', country: 'China', emoji: '🇨🇳', region: 'East Asia' },
-  { code: 'PVG', iata: 'PVG', name: 'Pudong Intl', city: 'Shanghai', country: 'China', emoji: '🇨🇳', region: 'East Asia' },
-  { code: 'HKG', iata: 'HKG', name: 'Chek Lap Kok', city: 'Hong Kong', country: 'HK', emoji: '🇭🇰', region: 'East Asia' },
-  { code: 'TPE', iata: 'TPE', name: 'Taoyuan Intl', city: 'Taipei', country: 'Taiwan', emoji: '🇹🇼', region: 'East Asia' },
-  // Southeast Asia
-  { code: 'SIN', iata: 'SIN', name: 'Changi', city: 'Singapore', country: 'Singapore', emoji: '🇸🇬', region: 'SE Asia' },
-  { code: 'BKK', iata: 'BKK', name: 'Suvarnabhumi', city: 'Bangkok', country: 'Thailand', emoji: '🇹🇭', region: 'SE Asia' },
-  { code: 'HAN', iata: 'HAN', name: 'Noi Bai Intl', city: 'Hanoi', country: 'Vietnam', emoji: '🇻🇳', region: 'SE Asia' },
-  { code: 'SGN', iata: 'SGN', name: 'Tan Son Nhat', city: 'Ho Chi Minh City', country: 'Vietnam', emoji: '🇻🇳', region: 'SE Asia' },
-  { code: 'KUL', iata: 'KUL', name: 'Kuala Lumpur Intl', city: 'Kuala Lumpur', country: 'Malaysia', emoji: '🇲🇾', region: 'SE Asia' },
-  { code: 'MNL', iata: 'MNL', name: 'Ninoy Aquino', city: 'Manila', country: 'Philippines', emoji: '🇵🇭', region: 'SE Asia' },
-  { code: 'CGK', iata: 'CGK', name: 'Soekarno-Hatta', city: 'Jakarta', country: 'Indonesia', emoji: '🇮🇩', region: 'SE Asia' },
-  { code: 'DPS', iata: 'DPS', name: 'Ngurah Rai', city: 'Bali', country: 'Indonesia', emoji: '🇮🇩', region: 'SE Asia' },
-  // Europe
-  { code: 'LHR', iata: 'LHR', name: 'Heathrow', city: 'London', country: 'UK', emoji: '🇬🇧', region: 'Europe' },
-  { code: 'CDG', iata: 'CDG', name: 'Charles de Gaulle', city: 'Paris', country: 'France', emoji: '🇫🇷', region: 'Europe' },
-  { code: 'AMS', iata: 'AMS', name: 'Schiphol', city: 'Amsterdam', country: 'Netherlands', emoji: '🇳🇱', region: 'Europe' },
-  { code: 'FCO', iata: 'FCO', name: 'Fiumicino', city: 'Rome', country: 'Italy', emoji: '🇮🇹', region: 'Europe' },
-  { code: 'BCN', iata: 'BCN', name: 'El Prat', city: 'Barcelona', country: 'Spain', emoji: '🇪🇸', region: 'Europe' },
-  { code: 'FRA', iata: 'FRA', name: 'Frankfurt', city: 'Frankfurt', country: 'Germany', emoji: '🇩🇪', region: 'Europe' },
-  { code: 'IST', iata: 'IST', name: 'Istanbul Intl', city: 'Istanbul', country: 'Turkey', emoji: '🇹🇷', region: 'Europe' },
-  { code: 'ATH', iata: 'ATH', name: 'Eleftherios Venizelos', city: 'Athens', country: 'Greece', emoji: '🇬🇷', region: 'Europe' },
-  // Middle East / Africa
-  { code: 'DXB', iata: 'DXB', name: 'Dubai Intl', city: 'Dubai', country: 'UAE', emoji: '🇦🇪', region: 'Middle East' },
-  { code: 'DOH', iata: 'DOH', name: 'Hamad Intl', city: 'Doha', country: 'Qatar', emoji: '🇶🇦', region: 'Middle East' },
-  { code: 'CAI', iata: 'CAI', name: 'Cairo Intl', city: 'Cairo', country: 'Egypt', emoji: '🇪🇬', region: 'Africa' },
-  { code: 'JNB', iata: 'JNB', name: 'OR Tambo Intl', city: 'Johannesburg', country: 'South Africa', emoji: '🇿🇦', region: 'Africa' },
-  // Americas
-  { code: 'CUN', iata: 'CUN', name: 'Cancun Intl', city: 'Cancún', country: 'Mexico', emoji: '🇲🇽', region: 'Americas' },
-  { code: 'GRU', iata: 'GRU', name: 'Guarulhos', city: 'São Paulo', country: 'Brazil', emoji: '🇧🇷', region: 'Americas' },
-  { code: 'NRT', iata: 'NRT', name: 'Pearson Intl', city: 'Toronto', country: 'Canada', emoji: '🇨🇦', region: 'Americas' },
-  // South Asia / Oceania
-  { code: 'DEL', iata: 'DEL', name: 'Indira Gandhi', city: 'Delhi', country: 'India', emoji: '🇮🇳', region: 'South Asia' },
-  { code: 'BOM', iata: 'BOM', name: 'Chhatrapati Shivaji', city: 'Mumbai', country: 'India', emoji: '🇮🇳', region: 'South Asia' },
-  { code: 'SYD', iata: 'SYD', name: 'Kingsford Smith', city: 'Sydney', country: 'Australia', emoji: '🇦🇺', region: 'Oceania' },
-];
-
-// Similarity map: if user picks X, suggest these
-const SIMILAR = {
-  TYO: ['OSA', 'ICN', 'PVG', 'TPE', 'SIN'],
-  OSA: ['TYO', 'ICN', 'TPE', 'HKG', 'SIN'],
-  ICN: ['TYO', 'PEK', 'PVG', 'HKG', 'SIN'],
-  PEK: ['PVG', 'ICN', 'TYO', 'HKG', 'TPE'],
-  PVG: ['PEK', 'ICN', 'TYO', 'HKG', 'SIN'],
-  SIN: ['BKK', 'KUL', 'HAN', 'DPS', 'ICN'],
-  BKK: ['SIN', 'KUL', 'HAN', 'DPS', 'SGN'],
-  LHR: ['CDG', 'AMS', 'FCO', 'BCN', 'FRA'],
-  CDG: ['LHR', 'AMS', 'FCO', 'BCN', 'ATH'],
-  DXB: ['DOH', 'IST', 'SIN', 'BKK', 'DEL'],
-};
+// Re-export so server components can import from lib/airports directly
+export { DESTINATIONS };
 
 function getSuggestions(selected) {
   if (selected.length === 0) return [];
   const codes = new Set(selected.map(d => d.code));
   const suggestCodes = new Set();
   selected.forEach(d => {
-    (SIMILAR[d.code] || []).forEach(c => { if (!codes.has(c)) suggestCodes.add(c); });
+    (SIMILAR_DESTINATIONS[d.code] || []).forEach(c => { if (!codes.has(c)) suggestCodes.add(c); });
   });
   return DESTINATIONS.filter(d => suggestCodes.has(d.code)).slice(0, 4);
 }
@@ -90,7 +37,7 @@ export default function DestinationPicker({ value = [], onChange }) {
 
   const addDest = (dest) => {
     if (value.find(d => d.code === dest.code)) return;
-    if (value.length >= 5) return; // max 5
+    if (value.length >= 5) return;
     onChange([...value, dest]);
     setQuery('');
     setOpen(false);
@@ -120,19 +67,14 @@ export default function DestinationPicker({ value = [], onChange }) {
           {value.map(dest => (
             <div key={dest.code} style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: 'var(--sky-light)',
-              border: '1.5px solid #bae6fd',
-              borderRadius: 'var(--r-full)',
-              padding: '4px 10px 4px 12px',
+              background: 'var(--sky-light)', border: '1.5px solid #bae6fd',
+              borderRadius: 'var(--r-full)', padding: '4px 10px 4px 12px',
               fontSize: 13, fontWeight: 600, color: '#0369a1',
             }}>
               <span>{dest.emoji}</span>
               <span>{dest.city}</span>
               <span style={{ fontWeight: 400, opacity: .75, fontSize: 12 }}>{dest.code}</span>
-              <button
-                onClick={() => removeDest(dest.code)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', opacity: .7, padding: 0, display: 'flex', marginLeft: 2 }}
-              >
+              <button onClick={() => removeDest(dest.code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', opacity: .7, padding: 0, display: 'flex', marginLeft: 2 }}>
                 <X size={13} />
               </button>
             </div>
@@ -140,7 +82,7 @@ export default function DestinationPicker({ value = [], onChange }) {
         </div>
       )}
 
-      {/* Suggestions from similarity */}
+      {/* Suggestions */}
       {suggestions.length > 0 && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -151,14 +93,7 @@ export default function DestinationPicker({ value = [], onChange }) {
               <button
                 key={dest.code}
                 onClick={() => addDest(dest)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '4px 10px', borderRadius: 'var(--r-full)',
-                  background: 'var(--surface)', border: '1.5px dashed var(--border-2)',
-                  cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                  color: 'var(--text-2)', fontFamily: 'inherit',
-                  transition: 'all .12s',
-                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 'var(--r-full)', background: 'var(--surface)', border: '1.5px dashed var(--border-2)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'inherit', transition: 'all .12s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--sky)'; e.currentTarget.style.color = '#0369a1'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-2)'; e.currentTarget.style.color = 'var(--text-2)'; }}
               >
@@ -187,18 +122,8 @@ export default function DestinationPicker({ value = [], onChange }) {
 
       {/* Dropdown */}
       {open && value.length < 5 && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
-          background: 'var(--surface)', border: '1.5px solid var(--border-2)',
-          borderRadius: 'var(--r)', boxShadow: 'var(--shadow-md)',
-          zIndex: 200, overflow: 'hidden', maxHeight: 320, overflowY: 'auto',
-          animation: 'slide-up .15s var(--ease)',
-        }}>
-          {!query && (
-            <div style={{ padding: '8px 14px 4px', fontSize: 11, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-              Popular destinations
-            </div>
-          )}
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: 'var(--surface)', border: '1.5px solid var(--border-2)', borderRadius: 'var(--r)', boxShadow: 'var(--shadow-md)', zIndex: 200, overflow: 'hidden', maxHeight: 320, overflowY: 'auto', animation: 'slide-up .15s var(--ease)' }}>
+          {!query && <div style={{ padding: '8px 14px 4px', fontSize: 11, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Popular destinations</div>}
           {results.map(dest => {
             const selected = value.find(d => d.code === dest.code);
             return (
@@ -206,26 +131,16 @@ export default function DestinationPicker({ value = [], onChange }) {
                 key={dest.code}
                 onClick={() => addDest(dest)}
                 disabled={!!selected}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 14px', border: 'none',
-                  background: selected ? 'var(--sky-light)' : 'transparent',
-                  cursor: selected ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit',
-                  transition: 'background .1s',
-                }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: 'none', background: selected ? 'var(--sky-light)' : 'transparent', cursor: selected ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'background .1s' }}
                 onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--bg-2)'; }}
                 onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
               >
                 <span style={{ fontSize: 22, flexShrink: 0 }}>{dest.emoji}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: selected ? '#0369a1' : 'var(--text)' }}>
-                    {dest.city}
-                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: selected ? '#0369a1' : 'var(--text)' }}>{dest.city}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     {dest.country} · {dest.iata}
-                    <span style={{ marginLeft: 6, padding: '1px 6px', background: 'var(--bg-2)', borderRadius: 4, fontSize: 10, fontWeight: 600, color: 'var(--text-light)' }}>
-                      {dest.region}
-                    </span>
+                    <span style={{ marginLeft: 6, padding: '1px 6px', background: 'var(--bg-2)', borderRadius: 4, fontSize: 10, fontWeight: 600, color: 'var(--text-light)' }}>{dest.region}</span>
                   </div>
                 </div>
                 {selected && <span style={{ fontSize: 11, fontWeight: 700, color: '#0369a1' }}>Added</span>}
@@ -237,5 +152,3 @@ export default function DestinationPicker({ value = [], onChange }) {
     </div>
   );
 }
-
-export { DESTINATIONS };
