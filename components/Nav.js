@@ -44,10 +44,10 @@ export default function Nav() {
           }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo.png"
+              src="/logo.svg"
               alt="Peregrine falcon logo"
-              width={30}
-              height={30}
+              width={28}
+              height={28}
               style={{ objectFit: 'contain' }}
             />
           </div>

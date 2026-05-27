@@ -1,10 +1,18 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
-import { MapPin, X, Sparkles, Search } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { MapPin, X, Sparkles, Search, Loader } from 'lucide-react';
 import { DESTINATIONS, SIMILAR_DESTINATIONS } from '@/lib/airports';
 
 // Re-export so server components can import from lib/airports directly
 export { DESTINATIONS };
+
+// Country code → emoji flag
+function countryEmoji(countryCode) {
+  if (!countryCode || countryCode.length !== 2) return '🌍';
+  return String.fromCodePoint(
+    ...[...countryCode.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0))
+  );
+}
 
 function getSuggestions(selected) {
   if (selected.length === 0) return [];
@@ -16,7 +24,7 @@ function getSuggestions(selected) {
   return DESTINATIONS.filter(d => suggestCodes.has(d.code)).slice(0, 4);
 }
 
-function filterDests(query) {
+function filterStatic(query) {
   const q = query.toLowerCase();
   return DESTINATIONS.filter(d =>
     d.code.toLowerCase().includes(q) ||
@@ -27,13 +35,56 @@ function filterDests(query) {
 }
 
 export default function DestinationPicker({ value = [], onChange }) {
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const inputRef = useRef(null);
+  const [query, setQuery]         = useState('');
+  const [open, setOpen]           = useState(false);
+  const [liveResults, setLive]    = useState(null); // null = not fetched yet
+  const [loading, setLoading]     = useState(false);
+  const inputRef    = useRef(null);
   const containerRef = useRef(null);
+  const debounceRef = useRef(null);
 
   const suggestions = getSuggestions(value);
-  const results = query.length >= 1 ? filterDests(query) : DESTINATIONS.slice(0, 8);
+
+  // Live Amadeus search — debounced 300ms, falls back to static list on error/missing keys
+  const fetchLive = useCallback(async (q) => {
+    if (q.length < 2) { setLive(null); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/locations/search?q=${encodeURIComponent(q)}`);
+      const json = await res.json();
+      if (json.error === 'api_keys_missing' || !json.data?.length) {
+        setLive(null); // will fall back to static filter
+      } else {
+        // Normalize to same shape as DESTINATIONS
+        setLive(json.data.map(loc => ({
+          code:    loc.code,
+          iata:    loc.code,
+          city:    loc.city || loc.name,
+          country: loc.country,
+          emoji:   countryEmoji(loc.countryCode),
+          region:  loc.subType === 'AIRPORT' ? 'Airport' : 'City',
+          isLive:  true,
+        })));
+      }
+    } catch {
+      setLive(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Debounce the live search
+  useEffect(() => {
+    if (!query) { setLive(null); setLoading(false); return; }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchLive(query), 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [query, fetchLive]);
+
+  // Results: live > static filter > popular
+  const results = query.length >= 1
+    ? (liveResults ?? filterStatic(query))
+    : DESTINATIONS.slice(0, 8);
 
   const addDest = (dest) => {
     if (value.find(d => d.code === dest.code)) return;
@@ -41,6 +92,7 @@ export default function DestinationPicker({ value = [], onChange }) {
     onChange([...value, dest]);
     setQuery('');
     setOpen(false);
+    setLive(null);
   };
 
   const removeDest = (code) => onChange(value.filter(d => d.code !== code));
@@ -82,7 +134,7 @@ export default function DestinationPicker({ value = [], onChange }) {
         </div>
       )}
 
-      {/* Suggestions */}
+      {/* Peregrine suggests */}
       {suggestions.length > 0 && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -107,7 +159,10 @@ export default function DestinationPicker({ value = [], onChange }) {
       {/* Input */}
       {value.length < 5 && (
         <div style={{ position: 'relative' }}>
-          <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          {loading
+            ? <Loader size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--sky)', animation: 'spin 1s linear infinite', pointerEvents: 'none' }} />
+            : <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          }
           <input
             ref={inputRef}
             className="field"
@@ -123,7 +178,21 @@ export default function DestinationPicker({ value = [], onChange }) {
       {/* Dropdown */}
       {open && value.length < 5 && (
         <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: 'var(--surface)', border: '1.5px solid var(--border-2)', borderRadius: 'var(--r)', boxShadow: 'var(--shadow-md)', zIndex: 200, overflow: 'hidden', maxHeight: 320, overflowY: 'auto', animation: 'slide-up .15s var(--ease)' }}>
-          {!query && <div style={{ padding: '8px 14px 4px', fontSize: 11, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Popular destinations</div>}
+          {!query && (
+            <div style={{ padding: '8px 14px 4px', fontSize: 11, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+              Popular destinations
+            </div>
+          )}
+          {query && liveResults && (
+            <div style={{ padding: '8px 14px 4px', fontSize: 11, fontWeight: 700, color: 'var(--sky)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+              Live results
+            </div>
+          )}
+          {results.length === 0 && !loading && (
+            <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
+              No destinations found for "{query}"
+            </div>
+          )}
           {results.map(dest => {
             const selected = value.find(d => d.code === dest.code);
             return (
@@ -139,7 +208,7 @@ export default function DestinationPicker({ value = [], onChange }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: selected ? '#0369a1' : 'var(--text)' }}>{dest.city}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {dest.country} · {dest.iata}
+                    {dest.country} · {dest.iata || dest.code}
                     <span style={{ marginLeft: 6, padding: '1px 6px', background: 'var(--bg-2)', borderRadius: 4, fontSize: 10, fontWeight: 600, color: 'var(--text-light)' }}>{dest.region}</span>
                   </div>
                 </div>

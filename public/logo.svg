@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+
+  <!-- Outermost wing feather — medium gray -->
+  <path d="
+    M 38 110
+    C 22 128 12 152 18 172
+    C 24 192 48 202 75 198
+    C 102 194 132 180 152 162
+    C 168 148 175 132 168 118
+    C 148 126 112 132 72 128
+    C 58 126 46 120 38 110 Z
+  " fill="#808080"/>
+
+  <!-- Dark charcoal wing feather — second layer -->
+  <path d="
+    M 42 97
+    C 26 115 16 138 22 158
+    C 28 176 52 186 78 182
+    C 105 178 134 164 154 146
+    C 170 132 176 116 170 102
+    C 150 110 114 116 74 112
+    C 60 110 49 106 42 97 Z
+  " fill="#363636"/>
+
+  <!-- White gap between dark and gray layers -->
+  <path d="M 40 104 C 68 118 120 122 168 110" stroke="white" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+  <!-- White gap between black head-body and dark layer -->
+  <path d="M 46 90 C 74 104 126 108 172 96" stroke="white" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+  <!-- Falcon head + body mass — black -->
+  <!-- Crest sweeping back to upper-left -->
+  <path d="
+    M 58 72
+    C 50 58 36 48 20 52
+    C 10 56 6 68 12 78
+    C 18 88 32 90 46 84
+    C 54 80 58 76 58 72 Z
+  " fill="#111111"/>
+
+  <!-- Main head silhouette -->
+  <path d="
+    M 56 74
+    C 60 58 72 44 92 36
+    C 112 28 138 30 158 44
+    C 174 56 182 72 178 86
+    C 174 100 162 108 150 104
+    C 162 98 168 84 160 72
+    C 154 62 168 54 162 44
+    C 155 34 138 32 122 38
+    C 106 44 96 58 96 74
+    C 96 88 104 102 116 108
+    C 96 110 72 104 62 90
+    C 54 80 54 76 56 74 Z
+  " fill="#111111"/>
+
+  <!-- Eye — white teardrop -->
+  <ellipse cx="156" cy="62" rx="9" ry="5.5" fill="white" transform="rotate(-14 156 62)"/>
+
+  <!-- Beak hook (lower part of beak curling down) -->
+  <path d="
+    M 178 86
+    C 188 90 194 104 186 114
+    C 180 122 170 120 166 114
+    C 173 117 182 112 182 102
+    C 182 93 178 86 178 86 Z
+  " fill="#111111"/>
+
+</svg>
