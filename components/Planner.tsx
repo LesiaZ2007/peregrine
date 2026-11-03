@@ -19,6 +19,9 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
   const [stored, setStored] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
   const [visited, setVisited] = useStored<string[]>(K.visited, EMPTY_IDS);
   const [wishlist, setWishlist] = useStored<string[]>(K.wishlist, EMPTY_IDS);
+  const [beenCc] = useStored<string[]>(K.countries, EMPTY_IDS);
+  const ccOf = useMemo(() => new Map(catalog.map((c) => [c.id, c.cc])), [catalog]);
+  const beenCountries = useMemo(() => [...new Set([...beenCc, ...visited.map((id) => ccOf.get(id)).filter((x): x is string => !!x)])], [beenCc, visited, ccOf]);
   const [presets, setPresets] = useStored<SavedPreset[]>(K.presets, EMPTY_PRESETS);
   const spec = useMemo(() => normalizeSpec(stored), [stored]);
   const acts = useTripActions(spec.currency);
@@ -39,7 +42,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
     setLoading(true);
     setError(null);
     try {
-      const body = { ...s, visited, wishlist };
+      const body = { ...s, visited, wishlist, beenCountries };
       const r = await fetch('/api/search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(`Search failed (${r.status})`);
       setRes((await r.json()) as Res);
@@ -49,7 +52,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
     } finally {
       setLoading(false);
     }
-  }, [visited, wishlist]);
+  }, [visited, wishlist, beenCountries]);
 
   // first load: a shared link (?s=) wins over what's stored on this device
   useEffect(() => {

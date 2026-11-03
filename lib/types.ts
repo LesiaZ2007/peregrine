@@ -97,6 +97,9 @@ export interface SearchSpec {
   exclude: string[];
   skipVisited: boolean;
   visited: string[];
+  /** countries you've been to (ISO codes), and whether to leave them out */
+  beenCountries: string[];
+  skipBeenCountries: boolean;
   wishlist: string[];
   tagsAny: Tag[];
   tagsNone: Tag[];

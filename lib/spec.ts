@@ -31,6 +31,8 @@ export const DEFAULT_SPEC: SearchSpec = {
   exclude: [],
   skipVisited: false,
   visited: [],
+  beenCountries: [],
+  skipBeenCountries: false,
   wishlist: [],
   tagsAny: [],
   tagsNone: [],

@@ -124,6 +124,17 @@ describe('fly + ferry and leg prices', () => {
   });
 });
 
+describe('countries you have been to', () => {
+  it('can leave them out of results', () => {
+    const all = runSearch(spec(), { today: TODAY });
+    expect(all.trips.some((t) => t.dest.cc === 'PT')).toBe(true);
+    const r = runSearch(spec({ beenCountries: ['PT', 'MA'], skipBeenCountries: true }), { today: TODAY });
+    expect(r.trips.some((t) => t.dest.cc === 'PT' || t.dest.cc === 'MA')).toBe(false);
+    const kept = runSearch(spec({ beenCountries: ['PT'], skipBeenCountries: false }), { today: TODAY });
+    expect(kept.trips.some((t) => t.dest.cc === 'PT')).toBe(true);
+  });
+});
+
 describe('near misses', () => {
   it('relaxes limits a little', () => {
     const s = relaxSpec(spec({ budgetTotal: 100, maxLegHours: 5 }));

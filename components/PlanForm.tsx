@@ -221,6 +221,7 @@ export default function PlanForm({ spec, set, catalog, countries, quota, hasLive
         <Seg label="Borders" value={spec.abroad} onChange={(abroad) => set({ abroad })} options={[['any', 'Anywhere'], ['only', 'Abroad only'], ['domestic', 'Same country']]} />
         <Tick checked={spec.inSeasonOnly} onChange={(inSeasonOnly) => set({ inSeasonOnly })} hint="hide places outside their best months">In season only</Tick>
         <Tick checked={spec.skipVisited} onChange={(skipVisited) => set({ skipVisited })} hint="places you’ve marked as been there">Skip where I’ve been</Tick>
+        <Tick checked={spec.skipBeenCountries} onChange={(skipBeenCountries) => set({ skipBeenCountries })} hint="your countries list on the Trips page">Skip countries I’ve been to</Tick>
         {spec.exclude.length > 0 && (
           <div className="field">
             <span className="label">Hidden ({spec.exclude.length}) · tap to bring back</span>

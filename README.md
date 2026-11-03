@@ -10,7 +10,15 @@ Find cheap, interesting trips from wherever you are — by train, coach, plane, 
 - **Budgets.** Travel budget, all-in budget, travellers, where you sleep (friends → hotel), under-26 fares, rail discount cards, checked bags.
 - **Your ranking.** Sliders for price, journey time, interests, time there and comfort, or sort by any single one.
 - **Interests.** Tap tags once to want them, twice to avoid them; filter by region, country or named places; domestic or abroad only; in-season only; skip places you've been.
-- **Keep things.** Save trips, keep a wishlist and a been-there list, save named setups, share a search as a link. Everything stays in the browser.
+- **Date ranges your way.** Any days, weekends only, or picked days (e.g. Thu–Sun): every day of a trip must be a free day.
+- **What it really costs.** Travel plus beds, food, getting around and sights, itemised, with settings for where you sleep and how you eat.
+- **Multi-mode journeys.** Train to the port + ferry, fly + airport coach, fly to the mainland + ferry to the island: every leg is named and priced, and the legs add up to the total.
+- **Cheaper flights?** Each flight route gets the typical cheap fare for its distance, the budget airlines around both ends, and search links.
+- **Near misses.** Places just outside your settings are listed with the reason and greyed on the map.
+- **The map.** Trains, coaches and ferries drawn along their real lines, flights as arcs between airports; drag, scroll or pinch to move around.
+- **Stars, compare, season plan.** Star places, compare up to four side by side, and lay out your upcoming weekends with a real price check for each.
+- **Ask Peregrine.** A chat assistant that reads what's on screen, compares options and can suggest settings.
+- **Keep things.** Wishlist, been-there places and countries, saved setups, share links, and export (backup/import .json, .csv, calendar .ics). Everything stays in the browser.
 
 ## Prices: real or estimated, always labelled
 
@@ -39,6 +47,13 @@ SERPAPI_KEY=
 
 Without a key, Ryanair and FlixBus fares still work.
 
+```
+# Chat assistant (Groq free tier): https://console.groq.com
+GROQ_API_KEY=
+```
+
+Photos are Wikipedia lead images (Wikimedia Commons), refreshed with `npm run data:images`.
+
 ## Checks
 
 ```bash
@@ -55,4 +70,4 @@ npm run data:airports   # rebuild lib/data/airports.json from OurAirports
 
 ## Credits
 
-Timetables: [Transitous](https://transitous.org/sources/). Airports: [OurAirports](https://ourairports.com/data/) (public domain). Map data: Natural Earth via `world-atlas`. Town search: [Open-Meteo](https://open-meteo.com/) geocoding.
+Timetables: [Transitous](https://transitous.org/sources/). Airports: [OurAirports](https://ourairports.com/data/) (public domain). Map data: Natural Earth via `world-atlas`. Town search: [Open-Meteo](https://open-meteo.com/) geocoding. Photos: Wikipedia / Wikimedia Commons.

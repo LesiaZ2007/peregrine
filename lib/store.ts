@@ -90,6 +90,7 @@ export const K = {
   presets: 'pg:presets',
   visited: 'pg:visited',
   wishlist: 'pg:wishlist',
+  countries: 'pg:countries',
 } as const;
 
 export const EMPTY_SAVED: SavedTrip[] = [];

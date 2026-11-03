@@ -17,7 +17,9 @@ import { Star } from './TripSlip';
 
 type Cands = { state: 'loading' | 'done' | 'error'; trips: Trip[]; msg?: string };
 
-export default function TripsView({ names }: { names: Record<string, string> }) {
+const flag = (cc: string) => (/^[A-Z]{2}$/.test(cc) && cc !== 'XK' ? String.fromCodePoint(...[...cc].map((ch) => 0x1f1a5 + ch.charCodeAt(0))) : '🏳');
+
+export default function TripsView({ names, ccOf, countries }: { names: Record<string, string>; ccOf: Record<string, string>; countries: { cc: string; name: string }[] }) {
   const [stored] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
   const spec = useMemo(() => normalizeSpec(stored), [stored]);
   const cur = spec.currency;
@@ -28,6 +30,11 @@ export default function TripsView({ names }: { names: Record<string, string> }) 
   const [visited, setVisited] = useStored<string[]>(K.visited, EMPTY_IDS);
   const [wishlist, setWishlist] = useStored<string[]>(K.wishlist, EMPTY_IDS);
   const [weeks, setWeeks] = useStored<number>('pg:planWeeks', 12);
+  const [beenCc, setBeenCc] = useStored<string[]>(K.countries, EMPTY_IDS);
+  const [addCc, setAddCc] = useState('');
+  const ccName = useMemo(() => new Map(countries.map((c) => [c.cc, c.name])), [countries]);
+  const fromPlaces = [...new Set(visited.map((id) => ccOf[id]).filter(Boolean))];
+  const allBeen = [...new Set([...beenCc, ...fromPlaces])].sort((a, b) => (ccName.get(a) ?? a).localeCompare(ccName.get(b) ?? b));
   const [cands, setCands] = useState<Record<string, Cands>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [open, setOpen] = useState<Trip | null>(null);
@@ -270,6 +277,37 @@ export default function TripsView({ names }: { names: Record<string, string> }) 
           </section>
         ))}
       </div>
+
+      <section>
+        <h2>Countries you’ve been to ({allBeen.length})</h2>
+        <p className="muted" style={{ fontSize: '0.85rem' }}>
+          Add countries yourself, or mark places “I’ve been” and their country joins the list. The planner can skip these (02 Where to).
+        </p>
+        <div className="row" style={{ marginBottom: 10 }}>
+          <select className="input" style={{ maxWidth: 280 }} value={addCc} onChange={(e) => setAddCc(e.target.value)} aria-label="Add a country">
+            <option value="">Add a country…</option>
+            {countries.filter((c) => !allBeen.includes(c.cc)).map((c) => <option key={c.cc} value={c.cc}>{c.name}</option>)}
+          </select>
+          <button className="btn small" disabled={!addCc} onClick={() => { setBeenCc((l) => [...new Set([...l, addCc])]); setAddCc(''); }}>Add</button>
+        </div>
+        <div className="tags">
+          {allBeen.map((cc) => {
+            const manual = beenCc.includes(cc);
+            return (
+              <button
+                key={cc}
+                className="tag country"
+                title={manual ? 'Remove' : 'From places you’ve been; unmark those places to remove'}
+                onClick={() => manual && setBeenCc((l) => l.filter((x) => x !== cc))}
+                aria-disabled={!manual}
+              >
+                <span aria-hidden="true">{flag(cc)}</span> {ccName.get(cc) ?? cc}{manual ? <span className="x">×</span> : <span className="muted" style={{ fontSize: '0.7rem' }}> · places</span>}
+              </button>
+            );
+          })}
+          {!allBeen.length && <span className="muted">None yet.</span>}
+        </div>
+      </section>
 
       <section>
         <h2>Export</h2>

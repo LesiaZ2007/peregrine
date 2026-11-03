@@ -22,7 +22,7 @@ export function tripBrief(t: Trip, cur: Currency): string {
 }
 
 export function specBrief(spec: SearchSpec): string {
-  const { visited: _v, wishlist: _w, ...rest } = spec;
+  const { visited: _v, wishlist: _w, beenCountries: _b, ...rest } = spec;
   return JSON.stringify(rest);
 }
 

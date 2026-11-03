@@ -54,6 +54,7 @@ function inScope(d: Destination, spec: SearchSpec, firstMonth: number): boolean 
   const ccs = new Set(spec.origins.map((o) => o.cc));
   if (spec.exclude.includes(d.id) || spec.exclude.includes(d.cc)) return false;
   if (spec.skipVisited && spec.visited.includes(d.id)) return false;
+  if (spec.skipBeenCountries && spec.beenCountries.includes(d.cc)) return false;
   switch (spec.scope) {
     case 'regions': if (!spec.regions.includes(d.region)) return false; break;
     case 'countries': if (!spec.countries.includes(d.cc)) return false; break;
