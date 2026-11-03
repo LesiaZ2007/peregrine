@@ -166,16 +166,29 @@ describe('search', () => {
     expect(f.hoursThere).toBe(45);
   });
 
-  it('never shows a flight without a real fare', () => {
-    const r = runSearch(spec({ when: one }), { today: TODAY });
-    expect(r.trips.flatMap((t) => t.options).some((o) => o.mode === 'flight')).toBe(false);
+  it('estimates flights where no live fare exists, and labels them', () => {
+    const r = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one }), { today: TODAY });
+    const f = r.trips[0]?.options.find((o) => o.mode === 'flight');
+    expect(f).toBeTruthy();
+    expect(f!.source).toBe('estimate');
+    expect(f!.priceHigh).toBeGreaterThan(f!.price);
+    expect(f!.links.some((l) => l.label.startsWith('Book on'))).toBe(false);
+    expect(f!.links.some((l) => l.label === 'Google Flights')).toBe(true);
+  });
+
+  it('prefers a live fare over an estimate', () => {
+    const r = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one }), { today: TODAY, flights: [fare()] });
+    const flights = r.trips[0].options.filter((o) => o.mode === 'flight');
+    expect(flights).toHaveLength(1);
+    expect(flights[0].source).toBe('live');
   });
 
   it('drops real fares that leave before you are free or land after you must be home', () => {
+    const live = (r: ReturnType<typeof runSearch>) => r.trips[0]?.options.some((o) => o.mode === 'flight' && o.source === 'live') ?? false;
     const early = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one }), { today: TODAY, flights: [fare({ outDep: '2026-11-06T09:00' })] });
-    expect(early.trips[0]?.options.some((o) => o.mode === 'flight') ?? false).toBe(false);
+    expect(live(early)).toBe(false);
     const late = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one }), { today: TODAY, flights: [fare({ inArr: '2026-11-08T23:30' })] });
-    expect(late.trips[0]?.options.some((o) => o.mode === 'flight') ?? false).toBe(false);
+    expect(live(late)).toBe(false);
   });
 
   it('adds places that only live fares know about', () => {

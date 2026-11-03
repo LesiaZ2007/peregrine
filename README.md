@@ -26,7 +26,7 @@ Find cheap, interesting trips from wherever you are — by train, coach, plane, 
 
 | Mode | Prices | Source |
 |---|---|---|
-| Flight | **Always real.** No real fare → no flight listed (links offered instead). | Ryanair fare finder (free, no key); Google Flights via SerpApi's free plan (optional) |
+| Flight | Real where Ryanair or Google has a fare; otherwise estimated from typical budget fares for the distance (labelled, with airlines to check and search links). | Ryanair fare finder (free, no key); Google Flights via SerpApi's free plan (optional) |
 | Coach | Real for the leading results and on demand; estimated otherwise | FlixBus (free, no key) |
 | Train | Estimated, with real timetables on demand | Transitous (free, open data) for timetables |
 | Ferry, rideshare, drive | Estimated | Links to Ferryhopper, BlaBlaCar, Google Maps, Rome2rio |

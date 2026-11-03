@@ -176,7 +176,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
             <h3>Cheaper flights?</h3>
             <div className="guide">
               {hint.noRealFare ? (
-                <span>No real fare came back for these dates (we only see Ryanair{spec.live ? ' and Google’s top results' : ''}). Other airlines may fly it.</span>
+                <span>No live fare came back for these dates (we see Ryanair{spec.live ? ' and Google’s top results' : ''}), so the flight above is an estimate. Other airlines fly it: check them.</span>
               ) : hint.cheaperLikely ? (
                 <span>The fare listed is above what this distance usually costs on a budget airline. Worth shopping around.</span>
               ) : (

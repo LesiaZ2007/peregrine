@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   }
 
   result.live = { used: fares.length > 0, calls: stats.calls, cached: stats.cached, errors: stats.errors };
-  if (spec.modes.flight && !fares.length) result.notes.push('No real flight fares came back for these dates, so flights are left out. Use the flight links on a place to look.');
+  if (spec.modes.flight && !fares.length) result.notes.push('No live flight fares came back for these dates, so flights are estimates. Check the flight links on a place.');
   if (spec.live && !hasSerp()) result.notes.push('Google flight fares are off (no SerpApi key); Ryanair fares are still live.');
   return NextResponse.json({ ...result, quota: await quota() });
 }

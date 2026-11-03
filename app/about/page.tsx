@@ -27,7 +27,7 @@ export default function About() {
         <table className="ledger" style={{ maxWidth: 820 }}>
           <thead><tr><th>Mode</th><th>Prices</th><th>Source</th></tr></thead>
           <tbody>
-            <tr><td><LineBadge mode="flight" /></td><td>Always real. A place without a real fare simply has no flight listed.</td><td>Ryanair fare finder (free); Google Flights through SerpApi’s free plan</td></tr>
+            <tr><td><LineBadge mode="flight" /></td><td>Real where Ryanair or Google has a fare; otherwise estimated from typical budget fares for the distance, with the airlines to check</td><td>Ryanair fare finder (free); Google Flights through SerpApi’s free plan</td></tr>
             <tr><td><LineBadge mode="bus" /></td><td>Real for the leading results and on demand; estimated otherwise</td><td>FlixBus (free)</td></tr>
             <tr><td><LineBadge mode="train" /></td><td>Estimated; real timetables on demand</td><td>Timetables from Transitous; book through Omio, Trainline or Rome2rio</td></tr>
             <tr><td><LineBadge mode="ferry" /></td><td>Estimated</td><td>Check Ferryhopper or Direct Ferries</td></tr>

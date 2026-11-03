@@ -1,7 +1,7 @@
 // The search engine. Pure: live fares are passed in, so it runs the same in tests.
 // Flights are ONLY ever real fares. Ground modes start as estimates and get swapped for
 // real fares (e.g. FlixBus) when a provider has them.
-import { flightHint } from './airlines';
+import { flightHint, typicalLowFare } from './airlines';
 import { airport, matchPlace, nearestAirports } from './catalog';
 import { costTotal, stayCosts } from './costs';
 import { COUNTRIES } from './data/countries';
@@ -89,7 +89,9 @@ function effort(o: Option, spec: SearchSpec): number {
   const w = spec.weights;
   const perHour = 3 + 18 * (w.time / Math.max(0.1, w.price + w.time));
   // real prices are worth a small edge over guesses
-  return o.price + (o.extraEst ?? 0) + (o.outMin / 60) * perHour * 2 + o.transfers * 4 * (0.5 + w.comfort) - (o.source === 'live' ? 3 : 0);
+  // real prices get a small edge; guessed flight fares carry an uncertainty penalty
+  const doubt = o.mode === 'flight' && o.source === 'estimate' ? 12 + o.price * 0.12 : 0;
+  return o.price + (o.extraEst ?? 0) + (o.outMin / 60) * perHour * 2 + o.transfers * 4 * (0.5 + w.comfort) - (o.source === 'live' ? 3 : 0) + doubt;
 }
 
 const MODE_WORD: Record<Mode, string> = { flight: 'air', train: 'train', bus: 'coach', ferry: 'ferry', rideshare: 'rideshare', drive: 'car' };
@@ -148,6 +150,7 @@ function transfer(lat: number, lon: number, code: string | undefined, cc: string
 }
 
 function flightOption(f: FlightFare, leg: Leg, w: TripWindow, spec: SearchSpec): Option {
+  const est = f.source === 'Estimate';
   const bag = spec.checkedBag ? 70 : 0;
   const air = f.airMin ?? Math.round((leg.km / 780) * 60 + 35);
   const times = f.outDep && f.inDep ? `out ${f.outDep.slice(11, 16)}, back ${f.inDep.slice(11, 16)}` : '';
@@ -158,11 +161,12 @@ function flightOption(f: FlightFare, leg: Leg, w: TripWindow, spec: SearchSpec):
   const legs: Option['legs'] = before || after
     ? [
         ...(before ? [{ mode: before.mode, note: `${word(before.mode)} to ${f.from}, ${before.km} km, about ${Math.round(before.min / 6) / 10} h`, price: before.usd, source: 'estimate' as const, min: before.min }] : []),
-        { mode: 'flight' as const, note: `fly ${f.from} → ${toAir ?? leg.toName}`, price: Math.round(f.priceUsd + bag), source: 'live' as const, min: air + (AIRPORT_BEFORE_H + AIRPORT_AFTER_H) * 60 },
+        { mode: 'flight' as const, note: `fly ${f.from} → ${toAir ?? leg.toName}`, price: Math.round(f.priceUsd + bag), source: est ? ('estimate' as const) : ('live' as const), min: air + (AIRPORT_BEFORE_H + AIRPORT_AFTER_H) * 60 },
         ...(after ? [{ mode: after.mode, note: `${word(after.mode)} from ${toAir} to ${leg.toName}, ${after.km} km, about ${Math.round(after.min / 6) / 10} h`, price: after.usd, source: 'estimate' as const, min: after.min }] : []),
       ]
     : undefined;
   const extraEst = (before?.usd ?? 0) + (after?.usd ?? 0);
+  const searchLinks = linksFor('flight', { ...leg, fromAir: f.from, toAir: f.toAirport ?? leg.toAir });
   return {
     mode: 'flight',
     legs,
@@ -171,14 +175,36 @@ function flightOption(f: FlightFare, leg: Leg, w: TripWindow, spec: SearchSpec):
     transfers: f.stops,
     stops: f.stops,
     price: Math.round(f.priceUsd + bag),
-    priceHigh: Math.round(f.priceUsd + bag),
-    source: 'live',
+    priceHigh: Math.round((f.priceHighUsd ?? f.priceUsd) + bag),
+    source: est ? 'estimate' : 'live',
     overnight: false,
     carrier: f.carrier,
-    note: [f.source, times, spec.checkedBag ? '+ about $70 for a checked bag' : 'hand luggage'].filter(Boolean).join(' · '),
+    note: est
+      ? `no live fare for these dates; typical budget fare for ${Math.round(leg.km)} km${spec.checkedBag ? ', + about $70 for a checked bag' : ''}`
+      : [f.source, times, spec.checkedBag ? '+ about $70 for a checked bag' : 'hand luggage'].filter(Boolean).join(' · '),
     hoursThere: Number.isFinite(groundHours(f, w, NaN)) ? Math.round(groundHours(f, w, NaN) - ((after?.min ?? 0) * 2) / 60) : undefined,
     path: airPath(leg, f.from, toAir),
-    links: [{ label: f.source === 'Ryanair' ? 'Book on Ryanair' : 'Google Travel', url: f.link }, ...linksFor('flight', { ...leg, fromAir: f.from, toAir: f.toAirport ?? leg.toAir })],
+    links: est ? searchLinks : [{ label: f.source === 'Ryanair' ? 'Book on Ryanair' : 'Google Travel', url: f.link }, ...searchLinks],
+  };
+}
+
+/**
+ * When no live source has a fare, estimate one from typical budget fares for the distance,
+ * nudged up for late booking and Friday departures. Always shown as an estimate.
+ */
+function estimatedFare(from: string, to: string, km: number, w: TripWindow, leadDays: number): FlightFare {
+  const { low, high } = typicalLowFare(km);
+  const lead = leadDays < 7 ? 1.5 : leadDays < 21 ? 1.15 : 1;
+  const dow = weekday(w.depart) === 5 ? 1.1 : 1;
+  const a = airport(to);
+  return {
+    from, depart: w.depart, ret: w.ret, toAirport: to, name: a?.city ?? to, country: '', lat: a?.lat ?? 0, lon: a?.lon ?? 0,
+    priceUsd: Math.round((low + (high - low) * 0.4) * lead * dow),
+    priceHighUsd: Math.round(high * lead * dow),
+    stops: km > 3500 ? 1 : 0,
+    carrier: 'Budget airlines (estimate)',
+    link: '',
+    source: 'Estimate',
   };
 }
 
@@ -217,7 +243,7 @@ function flyFerryOption(f: FlightFare, gate: Destination, dest: Destination, leg
   const seaKm = haversine(gate.lat, gate.lon, dest.lat, dest.lon);
   const hours = seaKm / 28 + 0.5;
   const sail = ferryLegPrice(hours);
-  const flightLegs = (base.legs ?? [{ mode: 'flight' as const, note: `fly ${f.from} → ${gate.airports[0]}`, price: base.price, source: 'live' as const, min: base.outMin }]);
+  const flightLegs = (base.legs ?? [{ mode: 'flight' as const, note: `fly ${f.from} → ${gate.airports[0]}`, price: base.price, source: base.source, min: base.outMin }]);
   return {
     ...base,
     legs: [...flightLegs, { mode: 'ferry', note: `ferry ${gate.name} → ${dest.name}, about ${Math.round(hours * 2) / 2} h`, price: sail, source: 'estimate', min: Math.round(hours * 60) }],
@@ -374,20 +400,33 @@ function searchCore(spec: SearchSpec, input: SearchInput): SearchResult {
         const fare = fareBy.get(dest.id)?.get(w.depart);
         // only use a fare that leaves from this home base's airports
         const fareHere = fare && (fromAirs.includes(fare.from) || haversine(o.lat, o.lon, airport(fare.from)?.lat ?? 0, airport(fare.from)?.lon ?? 0) <= spec.airportRadiusKm) ? fare : undefined;
-        if (fareHere && spec.modes.flight) {
+        const lead = daysBetween(today, w.depart);
+        // no live fare (Ryanair doesn't fly everywhere): estimate one so flying still shows up
+        const flightFare = fareHere ?? (
+          spec.modes.flight && fromAirs[0] && dest.airports[0] && fromAirs[0] !== dest.airports[0] &&
+          // short hops rarely have flights; water in the way is the exception
+          (km >= 450 || (km > 150 && originLand !== dest.land)) &&
+          (airport(fromAirs[0])?.size ?? 0) >= 1 && (airport(dest.airports[0])?.size ?? 1) >= 1
+            ? estimatedFare(fromAirs[0], dest.airports[0], km, w, lead)
+            : undefined
+        );
+        if (flightFare && spec.modes.flight) {
           // airport across the water (e.g. Split's airport for Hvar): it's fly + ferry, not fly + coach
-          const gate = gatewayFor(fareHere.toAirport, dest);
-          const ff = gate ? flyFerryOption(fareHere, gate, dest, leg, w, spec) : null;
-          options.unshift(ff ?? flightOption(fareHere, leg, w, spec));
+          const gate = gatewayFor(flightFare.toAirport, dest);
+          const ff = gate ? flyFerryOption(flightFare, gate, dest, leg, w, spec) : null;
+          options.unshift(ff ?? flightOption(flightFare, leg, w, spec));
         }
         // islands: fly to a nearby mainland gateway with a real fare, then the ferry
-        if (spec.modes.flight && spec.modes.ferry && !fareHere) {
+        if (spec.modes.flight && spec.modes.ferry && !flightFare) {
           let bestFF: Option | null = null;
           for (const g of DESTINATIONS) {
             if (g.land === dest.land || !g.airports.length || ferryHours(g.land, dest.land) === null) continue;
             if (haversine(g.lat, g.lon, dest.lat, dest.lon) > 300) continue;
-            const gf = fareBy.get(g.id)?.get(w.depart);
-            if (!gf || !fromAirs.includes(gf.from)) continue;
+            const live = fareBy.get(g.id)?.get(w.depart);
+            const gf = live && fromAirs.includes(live.from)
+              ? live
+              : fromAirs[0] && fromAirs[0] !== g.airports[0] ? estimatedFare(fromAirs[0], g.airports[0], haversine(o.lat, o.lon, g.lat, g.lon), w, lead) : undefined;
+            if (!gf) continue;
             const ff = flyFerryOption(gf, g, dest, leg, w, spec);
             if (ff && (!bestFF || ff.price + (ff.extraEst ?? 0) < bestFF.price + (bestFF.extraEst ?? 0))) bestFF = ff;
           }

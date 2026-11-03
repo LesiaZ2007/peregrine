@@ -256,7 +256,9 @@ export interface FlightFare {
   stops: number;
   carrier: string;
   link: string;
-  source: 'Ryanair' | 'Google Flights';
+  source: 'Ryanair' | 'Google Flights' | 'Estimate';
+  /** upper end of an estimated fare range */
+  priceHighUsd?: number;
   /** local "YYYY-MM-DDTHH:MM" times when known */
   outDep?: string;
   outArr?: string;
