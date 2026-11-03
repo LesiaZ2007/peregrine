@@ -6,7 +6,7 @@ import { hotelLinks } from '@/lib/links';
 import { bearingName, fmtCoord } from '@/lib/geo';
 import { duration, money } from '@/lib/money';
 import type { Currency, SearchSpec, Trip } from '@/lib/types';
-import { LineBadge, MODE_LABEL, ModeChain } from './icons';
+import { LineBadge, MODE_LABEL, ModeChain, Sure } from './icons';
 import Photo from './Photo';
 import { Star } from './TripSlip';
 
@@ -140,7 +140,8 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
                   </td>
                   <td className="num">
                     {o.source === 'live' || o.priceHigh <= o.price ? money(o.price, cur) : `${money(o.price, cur)}–${money(o.priceHigh, cur).replace(/^\D/, '')}`}
-                    <div><span className={`stamp ${o.source === 'live' ? 'live' : 'est'}`}>{o.source === 'live' ? 'live' : 'est.'}</span></div>
+                    <div><span className={`stamp ${o.source === 'live' ? 'live' : 'est'}`}>{o.source === 'live' ? 'live' : 'est.'}</span><Sure sure={o.sure} /></div>
+                    {o.sure && <div className="muted" style={{ fontSize: '0.68rem', maxWidth: 150, marginLeft: 'auto', marginTop: 2 }}>{o.sure.why}</div>}
                     {o.extraEst ? <div className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>+ {money(o.extraEst, cur)} <span className="stamp est">est.</span><br />other legs<br /><b className="mono" style={{ color: 'var(--ink)' }}>= {money(o.price + o.extraEst, cur)}</b></div> : null}
                   </td>
                 </tr>

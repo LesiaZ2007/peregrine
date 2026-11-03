@@ -3,6 +3,7 @@
 // real fares (e.g. FlixBus) when a provider has them.
 import { flightHint, typicalLowFare } from './airlines';
 import { airport, matchPlace, nearestAirports } from './catalog';
+import { sureness } from './confidence';
 import { costTotal, stayCosts } from './costs';
 import { COUNTRIES } from './data/countries';
 import { DESTINATIONS } from './data/destinations';
@@ -270,6 +271,8 @@ interface Candidate {
 
 /** Choose the best option for a trip and work out time there, stay cost and total. Mutates. */
 export function settleTrip(t: Trip, spec: SearchSpec): boolean {
+  const ccs = [...new Set([t.dest.cc, ...spec.origins.filter((o) => o.label === t.originLabel).map((o) => o.cc)])];
+  for (const o of t.options) o.sure = sureness(o, t.distanceKm, ccs);
   const blocked = t.options.map((o) => ({ option: o, why: whyBlocked(o, spec) })).filter((b): b is { option: Option; why: string } => b.why !== null);
   t.blocked = [...(t.blocked ?? []).filter((b) => !t.options.includes(b.option)), ...blocked];
   t.options = t.options.filter((o) => keepOption(o, spec));
@@ -493,7 +496,13 @@ export function applyGroundFare(t: Trip, fare: GroundFare, spec: SearchSpec): bo
     links: [{ label: `Book on ${fare.carrier}`, url: fare.link }, ...(est?.links.filter((l) => l.label !== fare.carrier) ?? [])],
   };
   const before = t.options;
-  t.options = [real, ...t.options.filter((o) => o.mode !== fare.mode)];
+  // FlixBus isn't every coach company: if its fare is well above the usual coach price here,
+  // keep the estimate as "other coach lines" alongside it (e.g. RegioJet often undercuts it)
+  const keepEst = est && est.source === 'estimate' && real.price > est.price * 1.15;
+  const others: Option | null = keepEst
+    ? { ...est, carrier: est.carrier?.replace(/, FlixBus…$/, '') || 'Other coach lines', note: `other coach lines are often cheaper than ${fare.carrier} here${est.note ? ` · ${est.note.replace(/, FlixBus$/, '')}` : ''}` }
+    : null;
+  t.options = [real, ...(others ? [others] : []), ...t.options.filter((o) => o.mode !== fare.mode)];
   const ok = settleTrip(t, spec);
   if (!ok) t.options = before;
   const alt = t.alts.find((a) => a.window.depart === t.window.depart);

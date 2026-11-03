@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { flightHint, typicalLowFare } from '@/lib/airlines';
 import { costTotal, stayCosts } from '@/lib/costs';
 import { DEST_BY_ID } from '@/lib/catalog';
-import { relaxSpec, runSearch } from '@/lib/search';
+import { applyGroundFare, relaxSpec, runSearch } from '@/lib/search';
 import { DEFAULT_SPEC, DEFAULT_WHEN } from '@/lib/spec';
 import type { HomeBase, Option, SearchSpec } from '@/lib/types';
 
@@ -140,6 +140,38 @@ describe('per-mode limits and other ways', () => {
     const tight = runSearch({ ...base, modeMaxHours: { train: 0.5, bus: 0.5 } }, { today: TODAY, flights: [fare] });
     const t = tight.trips[0] ?? tight.near[0];
     expect(t?.options.some((o) => o.mode === 'flight') ?? false).toBe(false);
+  });
+});
+
+describe('coach operators and price confidence', () => {
+  const VIENNA: HomeBase = { label: 'Vienna', lat: 48.2082, lon: 16.3738, cc: 'AT', airports: ['VIE'] };
+  const one = { ...DEFAULT_WHEN, weekendsAhead: 1 };
+
+  it('keeps a cheaper "other coach lines" option when FlixBus is pricey', () => {
+    const r = runSearch(spec({ origins: [VIENNA], scope: 'places', places: ['prague'], when: one }), { today: TODAY });
+    const t = r.trips[0];
+    const est = t.options.find((o) => o.mode === 'bus')!;
+    expect(est.links.some((l) => l.label === 'RegioJet')).toBe(true);
+    applyGroundFare(t, { mode: 'bus', priceUsd: est.price * 2.5, outMin: 260, transfers: 0, carrier: 'FlixBus', link: 'x', overnight: false }, spec({ origins: [VIENNA] }));
+    const buses = t.options.filter((o) => o.mode === 'bus');
+    expect(buses.map((o) => o.source).sort()).toEqual(['estimate', 'live']);
+    expect(buses.find((o) => o.source === 'estimate')!.note).toMatch(/often cheaper than FlixBus/);
+  });
+
+  it('just swaps in FlixBus when it is the cheap one', () => {
+    const r = runSearch(spec({ origins: [VIENNA], scope: 'places', places: ['prague'], when: one }), { today: TODAY });
+    const t = r.trips[0];
+    applyGroundFare(t, { mode: 'bus', priceUsd: 5, outMin: 260, transfers: 0, carrier: 'FlixBus', link: 'x', overnight: false }, spec({ origins: [VIENNA] }));
+    expect(t.options.filter((o) => o.mode === 'bus')).toHaveLength(1);
+  });
+
+  it('rates how sure each price is', () => {
+    const fare = { from: 'MAD', depart: '2026-11-06', ret: '2026-11-08', toAirport: 'LIS', name: 'Lisbon', country: 'Portugal', lat: 38.77, lon: -9.13, priceUsd: 40, stops: 0, carrier: 'Ryanair', link: 'x', source: 'Ryanair' as const };
+    const live = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one }), { today: TODAY, flights: [fare] });
+    expect(live.trips[0].options.find((o) => o.mode === 'flight')!.sure?.level).toBe(5);
+    const guess = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one }), { today: TODAY });
+    expect(guess.trips[0].options.find((o) => o.mode === 'flight')!.sure?.level).toBe(2);
+    for (const o of guess.trips[0].options) expect(o.sure?.level).toBeGreaterThanOrEqual(1);
   });
 });
 

@@ -169,6 +169,8 @@ export interface Option {
   carrier?: string;
   stops?: number;
   note?: string;
+  /** how much to trust the price: 1 rough guess … 5 real fare for your dates */
+  sure?: { level: 1 | 2 | 3 | 4 | 5; why: string };
   /** waypoints [lon, lat] for drawing the journey (town → airport → airport → town …) */
   path?: [number, number][];
   /** hours on the ground computed from real timetables, when known */

@@ -3,6 +3,7 @@
 // Flights are never estimated.
 import { COUNTRIES } from './data/countries';
 import { linksFor } from './links';
+import { coachOperators, railOperators } from './operators';
 import type { Hop, Mode, Option, Region } from './types';
 
 export interface Leg {
@@ -149,7 +150,9 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     if (p.railcard) fare *= 0.7;
     const transfers = Math.min(4, Math.floor(km / 450) + (rail < 2 ? 1 : 0));
     const night = outMin > 8 * 60 && km > 600;
+    const railOps = railOperators([l.fromCc, l.toCc]);
     out.push(option('train', l, outMin, fare, 2.2, transfers, {
+      links: [...railOps, ...linksFor('train', l)],
       overnight: night, note: night ? 'a night train saves a hotel night' : undefined,
       legs: ferry ? split(fare * 2, ferryLegPrice(ferry, lvl), 'train', 'train to the coast and on the other side', `ferry crossing, about ${hrs(ferry)}`, outMin, ferry * 60) : undefined,
     }));
@@ -160,8 +163,12 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     const outMin = (km / 68) * 60 + 20 + (ferry ? ferry * 60 : 0);
     const fare = Math.max(7, km * 0.045 * (0.5 + lvl / 2)) * (0.85 + dem * 0.15);
     const night = outMin > 7 * 60;
+    const ops = coachOperators([l.fromCc, l.toCc]);
     out.push(option('bus', l, outMin, fare, 1.9, Math.floor(km / 900), {
-      overnight: night, note: night ? 'overnight coach' : undefined,
+      overnight: night,
+      carrier: ops.length ? `${ops.map((x) => x.label).join(', ')}, FlixBus…` : undefined,
+      note: [night ? 'overnight coach' : '', ops.length ? `coach lines here: ${ops.map((x) => x.label).join(', ')}, FlixBus` : ''].filter(Boolean).join(' · ') || undefined,
+      links: [...ops, ...linksFor('bus', l)],
       legs: ferry ? split(fare * 2, ferryLegPrice(ferry, lvl), 'bus', 'coach to the coast and on the other side', `ferry crossing, about ${hrs(ferry)}`, outMin, ferry * 60) : undefined,
     }));
   }

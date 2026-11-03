@@ -70,6 +70,18 @@ export function ModeGlyph({ mode }: { mode: Mode }) {
   );
 }
 
+const SURE_WORD = ['', 'rough guess', 'estimate', 'fair estimate', 'mostly real', 'real fare'];
+
+/** Five little bars: how much to trust a price. */
+export function Sure({ sure }: { sure?: { level: number; why: string } }) {
+  if (!sure) return null;
+  return (
+    <span className="sure" data-level={sure.level} title={`Price confidence ${sure.level}/5: ${sure.why}`} aria-label={`Price confidence ${sure.level} of 5, ${SURE_WORD[sure.level]}`}>
+      {[1, 2, 3, 4, 5].map((i) => <i key={i} data-on={i <= sure.level} style={{ height: 3 + i * 1.6 }} />)}
+    </span>
+  );
+}
+
 /** All the kinds of transport a journey uses, in order ("COACH + FLY + COACH"). */
 export function ModeChain({ option, compact = false }: { option: { mode: Mode; legs?: { mode: Mode }[] }; compact?: boolean }) {
   const seq = (option.legs?.map((l) => l.mode) ?? [option.mode]).filter((m, i, a) => i === 0 || a[i - 1] !== m);

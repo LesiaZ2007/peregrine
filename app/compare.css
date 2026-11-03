@@ -92,6 +92,12 @@
   .place-hero { grid-template-columns: 1fr; }
   .place-hero-img { min-height: 200px; border-right: 0; border-bottom: 1px solid var(--ink); }
 }
+/* price confidence meter */
+.sure { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 12px; vertical-align: middle; margin-left: 5px; cursor: help; }
+.sure i { width: 3px; background: var(--rule); border-radius: 0.5px; }
+.sure[data-level='5'] i[data-on='true'], .sure[data-level='4'] i[data-on='true'] { background: var(--ok); }
+.sure[data-level='3'] i[data-on='true'] { background: var(--ink-2); }
+.sure[data-level='2'] i[data-on='true'], .sure[data-level='1'] i[data-on='true'] { background: var(--warn); }
 .sortbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sortbar .caps { margin-right: 4px; }
 

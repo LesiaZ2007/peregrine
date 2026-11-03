@@ -2,7 +2,7 @@
 import { bearingName } from '@/lib/geo';
 import { duration, money } from '@/lib/money';
 import type { Currency, Trip } from '@/lib/types';
-import { ModeChain } from './icons';
+import { ModeChain, Sure } from './icons';
 import Photo from './Photo';
 
 interface Props {
@@ -81,6 +81,7 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
                 <b>{money(o.price + (o.extraEst ?? 0), cur)}</b>
                 <span>{duration(o.outMin)}</span>
                 <i className={o.source === 'live' ? 'live' : ''}>{o.source === 'live' ? (o.extraEst ? 'live+est.' : 'live') : 'est.'}</i>
+                <Sure sure={o.sure} />
               </span>
             ))}
             {(t.blocked?.length ?? 0) > 0 && (
@@ -100,6 +101,7 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
         <span className="big">{money(b.price + (b.extraEst ?? 0), cur)}</span>
         <span>
           <span className={`stamp ${b.source === 'live' ? 'live' : 'est'}`}>{b.source === 'live' ? (b.extraEst ? 'live+est.' : 'live') : 'est.'}</span>
+          <Sure sure={b.sure} />
         </span>
         <small title="travel + beds, food, getting around and sights">+ {money(t.stayCost, cur)} stay & food</small>
         <small className="all-in"><i>all in</i>{money(t.total, cur)}</small>

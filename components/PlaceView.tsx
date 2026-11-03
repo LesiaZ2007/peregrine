@@ -11,7 +11,7 @@ import { EMPTY_IDS, K, useStored } from '@/lib/store';
 import type { Destination, Mode, SearchResult, SearchSpec, StayStyle, Trip } from '@/lib/types';
 import { useTripActions } from '@/lib/useTripActions';
 import ChatDock from './ChatDock';
-import { LineBadge, MODE_LABEL, ModeChain } from './icons';
+import { LineBadge, MODE_LABEL, ModeChain, Sure } from './icons';
 import Photo from './Photo';
 import TripSheet from './TripSheet';
 import { Star } from './TripSlip';
@@ -134,7 +134,7 @@ export default function PlaceView({ dest }: { dest: Destination }) {
                         <div className="links">{o.source === 'estimate' && <span className="muted">Estimate. Real price:</span>}{o.links.slice(0, 4).map((l) => <a key={l.label} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}</div>
                       </td>
                       <td className="mono" style={{ fontSize: '0.85rem' }}>{duration(o.outMin)}<div className="muted">{o.transfers ? `${o.transfers} chg` : 'direct'}</div></td>
-                      <td className="num">{m(o.price + (o.extraEst ?? 0))}<div><span className={`stamp ${o.source === 'live' ? 'live' : 'est'}`}>{o.source === 'live' ? (o.extraEst ? 'live+est.' : 'live') : 'est.'}</span></div></td>
+                      <td className="num">{m(o.price + (o.extraEst ?? 0))}<div><span className={`stamp ${o.source === 'live' ? 'live' : 'est'}`}>{o.source === 'live' ? (o.extraEst ? 'live+est.' : 'live') : 'est.'}</span><Sure sure={o.sure} /></div></td>
                     </tr>
                   );
                 })}

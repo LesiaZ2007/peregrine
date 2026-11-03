@@ -8,7 +8,7 @@ import { K, useStored } from '@/lib/store';
 import type { SearchSpec, Trip } from '@/lib/types';
 import { useTripActions } from '@/lib/useTripActions';
 import ChatDock from './ChatDock';
-import { MODE_LABEL, ModeChain } from './icons';
+import { MODE_LABEL, ModeChain, Sure } from './icons';
 import Photo from './Photo';
 import { Star } from './TripSlip';
 
@@ -39,6 +39,7 @@ export default function CompareView() {
         <>
           <ModeChain option={t.best} /> <b className="mono">{m(t.best.price + (t.best.extraEst ?? 0))}</b>{' '}
           <span className={`stamp ${t.best.source === 'live' ? 'live' : 'est'}`}>{t.best.source === 'live' ? 'live' : 'est.'}</span>
+          <Sure sure={t.best.sure} />
           {t.best.carrier && <div className="muted" style={{ fontSize: '0.78rem' }}>{t.best.carrier}</div>}
         </>
       ),
