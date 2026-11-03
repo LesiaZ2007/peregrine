@@ -112,13 +112,18 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
               <tr><th>Mode</th><th>One way</th><th style={{ textAlign: 'right' }}>Return pp</th></tr>
             </thead>
             <tbody>
-              {t.options.map((o) => (
-                <tr key={o.mode}>
+              {t.options.map((o, oi) => (
+                <tr key={`${o.mode}-${oi}`}>
                   <td>
-                    <ModeChain option={o} /> {o.mode === t.best.mode && <span className="flag">best fit</span>}
+                    <ModeChain option={o} /> {oi === 0 && <span className="flag">best fit</span>}
                     {o.legs && (
                       <ol className="legs">
-                        {o.legs.map((l, k) => <li key={k} data-mode={l.mode}>{l.note}</li>)}
+                        {o.legs.map((l, k) => (
+                          <li key={k} data-mode={l.mode}>
+                            {l.note}
+                            {l.price != null && <> · <b className="mono">{money(l.price, cur)}</b> <span className={`stamp ${l.source === 'live' ? 'live' : 'est'}`}>{l.source === 'live' ? 'live' : 'est.'}</span></>}
+                          </li>
+                        ))}
                       </ol>
                     )}
                     {o.carrier && <div style={{ fontSize: '0.8rem', marginTop: 4 }}>{o.carrier}</div>}
@@ -135,7 +140,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
                   <td className="num">
                     {o.source === 'live' || o.priceHigh <= o.price ? money(o.price, cur) : `${money(o.price, cur)}–${money(o.priceHigh, cur).replace(/^\D/, '')}`}
                     <div><span className={`stamp ${o.source === 'live' ? 'live' : 'est'}`}>{o.source === 'live' ? 'live' : 'est.'}</span></div>
-                    {o.extraEst ? <div className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>+ {money(o.extraEst, cur)} <span className="stamp est">est.</span><br />transfers</div> : null}
+                    {o.extraEst ? <div className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>+ {money(o.extraEst, cur)} <span className="stamp est">est.</span><br />other legs<br /><b className="mono" style={{ color: 'var(--ink)' }}>= {money(o.price + o.extraEst, cur)}</b></div> : null}
                   </td>
                 </tr>
               ))}
@@ -269,7 +274,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
           <table className="ledger">
             <tbody>
               <tr><td>{MODE_LABEL[t.best.mode]}, return <span className={`stamp ${t.best.source === 'live' ? 'live' : 'est'}`}>{t.best.source === 'live' ? 'live' : 'est.'}</span></td><td className="num">{money(t.best.price, cur)}</td></tr>
-              {t.best.extraEst ? <tr><td>Transfers to and from the airport <span className="stamp est">est.</span><div className="muted" style={{ fontSize: '0.78rem' }}>{t.best.legs?.filter((l) => l.mode !== t.best.mode).map((l) => l.note).join(' · ')}</div></td><td className="num">{money(t.best.extraEst, cur)}</td></tr> : null}
+              {t.best.extraEst ? <tr><td>Other legs (transfers, ferry) <span className="stamp est">est.</span><div className="muted" style={{ fontSize: '0.78rem' }}>{t.best.legs?.filter((l) => l.mode !== t.best.mode).map((l) => l.note).join(' · ')}</div></td><td className="num">{money(t.best.extraEst, cur)}</td></tr> : null}
               <tr>
                 <td>Beds · {c.nights} night{c.nights === 1 ? '' : 's'}, {STAY_LABEL[spec.stayStyle]}<div className="muted" style={{ fontSize: '0.78rem' }}>{spec.stayStyle === 'free' ? 'staying with friends' : `about ${money(r.bed, cur)} a night`}{t.best.overnight ? ' · one night on the move' : ''}</div></td>
                 <td className="num">{money(c.beds, cur)}</td>

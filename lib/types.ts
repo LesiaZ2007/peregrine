@@ -140,6 +140,9 @@ export interface Hop {
   mode: Mode;
   /** e.g. "coach to LIS, about 1h 40m" */
   note: string;
+  /** this leg's return price per person, USD, when known */
+  price?: number;
+  source?: 'live' | 'estimate';
 }
 
 /** One way of doing the round trip to a destination. Prices are USD per person, round trip. */
@@ -159,6 +162,8 @@ export interface Option {
   carrier?: string;
   stops?: number;
   note?: string;
+  /** waypoints [lon, lat] for drawing the journey (town → airport → airport → town …) */
+  path?: [number, number][];
   /** hours on the ground computed from real timetables, when known */
   hoursThere?: number;
   links: Link[];

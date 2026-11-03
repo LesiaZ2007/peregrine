@@ -94,6 +94,36 @@ describe('multi-mode journeys', () => {
   });
 });
 
+describe('fly + ferry and leg prices', () => {
+  const one = { ...DEFAULT_WHEN, weekendsAhead: 1 };
+  it('reaches an island by flying to the mainland and taking the ferry, with both prices', () => {
+    const fare = {
+      from: 'MAD', depart: '2026-11-06', ret: '2026-11-08', toAirport: 'SPU', name: 'Split', country: 'Croatia', lat: 43.54, lon: 16.3,
+      priceUsd: 60, stops: 0, carrier: 'Ryanair', link: 'x', source: 'Ryanair' as const,
+    };
+    const r = runSearch(spec({ scope: 'places', places: ['hvar'], when: one, maxLegHours: 14, minHoursThere: 0 }), { today: TODAY, flights: [fare] });
+    const ff = [...r.trips, ...r.near][0]?.options.find((o) => o.legs?.some((l) => l.mode === 'flight') && o.legs?.some((l) => l.mode === 'ferry'));
+    expect(ff).toBeTruthy();
+    const flightLeg = ff!.legs!.find((l) => l.mode === 'flight')!;
+    const ferryLeg = ff!.legs!.find((l) => l.mode === 'ferry')!;
+    expect(flightLeg.source).toBe('live');
+    expect(ferryLeg.source).toBe('estimate');
+    expect(ferryLeg.price).toBeGreaterThan(0);
+    expect(ff!.price + (ff!.extraEst ?? 0)).toBeGreaterThan(60);
+  });
+
+  it('every multi-mode option prices each leg, and the legs add up to the total', () => {
+    const r = runSearch(spec({ scope: 'places', places: ['palma', 'hvar', 'palermo'], when: one, maxLegHours: 20, minHoursThere: 0 }), { today: TODAY });
+    const multi = [...r.trips, ...r.near].flatMap((t) => t.options).filter((o) => o.legs);
+    expect(multi.length).toBeGreaterThan(0);
+    for (const o of multi) {
+      const sum = o.legs!.reduce((s, l) => s + (l.price ?? 0), 0);
+      expect(o.legs!.every((l) => l.price != null)).toBe(true);
+      expect(Math.abs(sum - (o.price + (o.extraEst ?? 0)))).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
 describe('near misses', () => {
   it('relaxes limits a little', () => {
     const s = relaxSpec(spec({ budgetTotal: 100, maxLegHours: 5 }));

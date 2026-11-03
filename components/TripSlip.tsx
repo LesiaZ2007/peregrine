@@ -30,7 +30,7 @@ export function Star({ on, onClick, label }: { on: boolean; onClick: () => void;
 
 export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starred, onStar, compared, onCompare }: Props) {
   const b = t.best;
-  const others = t.options.filter((o) => o.mode !== b.mode).slice(0, 3);
+  const others = t.options.slice(1, 4);
   const near = !!t.nearMiss?.length;
   return (
     <div
@@ -74,7 +74,7 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
         </span>
         {others.length > 0 && (
           <span className="mono muted" style={{ fontSize: '0.74rem' }}>
-            or {others.map((o) => `${o.mode} ${money(o.price, cur)}`).join(', ')}
+            or {others.map((o) => `${o.legs ? [...new Set(o.legs.map((l) => l.mode))].join('+') : o.mode} ${money(o.price + (o.extraEst ?? 0), cur)}`).join(', ')}
           </span>
         )}
         {t.flightHint?.cheaperLikely && <span className="hint-chip">other airlines may be cheaper</span>}
@@ -86,7 +86,7 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
       <span className="price">
         <span className="big">{money(b.price + (b.extraEst ?? 0), cur)}</span>
         <span>
-          <span className={`stamp ${b.source === 'live' ? 'live' : 'est'}`}>{b.source === 'live' ? 'live' : 'est.'}</span>
+          <span className={`stamp ${b.source === 'live' ? 'live' : 'est'}`}>{b.source === 'live' ? (b.extraEst ? 'live+est.' : 'live') : 'est.'}</span>
         </span>
         <small title="travel + beds, food, getting around and sights">+ {money(t.stayCost, cur)} stay & food</small>
         <small className="all-in">{money(t.total, cur)} all in</small>

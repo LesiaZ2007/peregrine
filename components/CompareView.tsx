@@ -55,9 +55,9 @@ export default function CompareView() {
       label: 'Other ways',
       cell: (t) => (
         <div style={{ display: 'grid', gap: 4 }}>
-          {t.options.filter((o) => o.mode !== t.best.mode).map((o) => (
-            <span key={o.mode} className="mono" style={{ fontSize: '0.8rem' }}>
-              {MODE_LABEL[o.mode]} {m(o.price)} {o.source === 'live' ? 'live' : 'est.'} · {duration(o.outMin)}
+          {t.options.slice(1).map((o, i) => (
+            <span key={i} className="mono" style={{ fontSize: '0.8rem' }}>
+              {(o.legs?.map((l) => MODE_LABEL[l.mode]) ?? [MODE_LABEL[o.mode]]).filter((x, k, a) => k === 0 || a[k - 1] !== x).join(' + ')} {m(o.price + (o.extraEst ?? 0))} {o.source === 'live' ? (o.extraEst ? 'live+est.' : 'live') : 'est.'} · {duration(o.outMin)}
             </span>
           ))}
           {t.options.length < 2 && <span className="muted">none</span>}
