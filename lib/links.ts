@@ -79,3 +79,28 @@ export function linksFor(mode: Mode, e: Ends): Link[] {
       return [gmaps(e, 'driving'), rome2rio(e)];
   }
 }
+
+/** Places to look for a bed, ordered by how you like to stay. Dates and group size filled in. */
+export function hotelLinks(place: string, country: string, checkin: string, checkout: string, guests: number, style: 'free' | 'hostel' | 'budget' | 'mid'): Link[] {
+  const q = `${place}, ${country}`;
+  const booking: Link = {
+    label: 'Booking.com',
+    url: `https://www.booking.com/searchresults.html?ss=${enc(q)}&checkin=${checkin}&checkout=${checkout}&group_adults=${guests}&no_rooms=1&order=price`,
+  };
+  const hostelworld: Link = {
+    label: 'Hostelworld',
+    url: `https://www.hostelworld.com/search?search_keywords=${enc(q)}&date_from=${checkin}&date_to=${checkout}&number_of_guests=${guests}`,
+  };
+  const airbnb: Link = {
+    label: 'Airbnb',
+    url: `https://www.airbnb.com/s/${enc(q)}/homes?checkin=${checkin}&checkout=${checkout}&adults=${guests}`,
+  };
+  const google: Link = {
+    label: 'Google Hotels',
+    url: `https://www.google.com/travel/hotels?q=${enc(`hotels in ${q}`)}&dates=${checkin},${checkout}&adults=${guests}`,
+  };
+  const couch: Link = { label: 'Couchsurfing', url: 'https://www.couchsurfing.com/' };
+  if (style === 'hostel') return [hostelworld, booking, airbnb, google];
+  if (style === 'free') return [couch, hostelworld, booking, airbnb];
+  return [booking, airbnb, google, hostelworld];
+}

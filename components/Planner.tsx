@@ -203,7 +203,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
             {near.length > 0 && (
               <>
                 <div className="near-head">
-                  <h3>Just outside your settings</h3>
+                  <h3>Just outside your settings{near.some((t) => t.flags.includes('hidden')) ? ' · hidden places' : ''}</h3>
                   <span className="muted" style={{ fontSize: '0.85rem' }}>{near.length} place{near.length === 1 ? '' : 's'}, greyed on the map</span>
                   <button className="btn small" onClick={() => setShowNear((v) => !v)}>{showNear ? 'Hide' : 'Show'}</button>
                 </div>
@@ -234,7 +234,14 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
           onBeen={() => setVisited((v) => toggle(v, open.dest.id))}
           wished={wishlist.includes(open.dest.id)}
           onWish={() => setWishlist((v) => toggle(v, open.dest.id))}
-          onHide={() => { set({ exclude: [...new Set([...spec.exclude, open.dest.id])] }); setOpen(null); }}
+          hidden={spec.exclude.includes(open.dest.id)}
+          onHide={() => {
+            const isHidden = spec.exclude.includes(open.dest.id);
+            const next = normalizeSpec({ ...spec, exclude: isHidden ? spec.exclude.filter((x) => x !== open.dest.id) : [...spec.exclude, open.dest.id] });
+            setStored(next);
+            setOpen(null);
+            run(next);
+          }}
         />
       )}
 

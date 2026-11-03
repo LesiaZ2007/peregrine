@@ -272,7 +272,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
                   <circle r={isHot ? 4.5 : 3} fill="var(--paper-3)" stroke="var(--rule-2)" strokeWidth={1.4} />
                   {isHot && (
                     <text x={10} y={4} style={{ font: '600 14.5px var(--f-sans)', fill: 'var(--ink-2)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
-                      {t.dest.name} · just outside
+                      {t.dest.name} · {t.flags.includes('hidden') ? 'hidden' : 'just outside'}
                     </text>
                   )}
                 </g>

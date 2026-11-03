@@ -56,12 +56,13 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
           {t.flags.includes('wish') && <span className="flag">wishlist</span>}
           {t.flags.includes('been') && <span className="flag">been</span>}
           {t.flags.includes('new') && <span className="flag">new find</span>}
+          {t.flags.includes('hidden') && <span className="flag">hidden</span>}
         </b>
         <span>
           {t.dest.country} · <span className="mono">{t.distanceKm.toLocaleString('en-GB')} km {bearingName(t.originLat, t.originLon, t.dest.lat, t.dest.lon)}</span>
         </span>
         {near ? (
-          <span className="why near-why">Just outside: {t.nearMiss!.join(' · ')}</span>
+          <span className="why near-why">{t.flags.includes('hidden') ? 'Hidden by you' : `Just outside: ${t.nearMiss!.join(' · ')}`}</span>
         ) : (
           t.reasons.length > 0 && <span className="why">{t.reasons.slice(0, 3).join(' · ')}</span>
         )}

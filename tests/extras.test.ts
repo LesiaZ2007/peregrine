@@ -143,6 +143,16 @@ describe('per-mode limits and other ways', () => {
   });
 });
 
+describe('hidden places', () => {
+  it('stay visible as greyed entries, flagged hidden', () => {
+    const r = runSearch(spec({ exclude: ['toledo'], when: { ...DEFAULT_WHEN, weekendsAhead: 1 } }), { today: TODAY });
+    expect(r.trips.some((t) => t.dest.id === 'toledo')).toBe(false);
+    const h = r.near.find((t) => t.dest.id === 'toledo');
+    expect(h?.flags).toContain('hidden');
+    expect(h?.nearMiss?.[0]).toBe('hidden by you');
+  });
+});
+
 describe('countries you have been to', () => {
   it('can leave them out of results', () => {
     const all = runSearch(spec(), { today: TODAY });

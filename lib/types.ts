@@ -211,7 +211,11 @@ export interface Trip {
   /** other ways there that break one of your limits, with the reason */
   blocked?: { option: Option; why: string }[];
   /** best price for each date window tried, for comparing dates */
-  alts: { window: TripWindow; mode: Mode; price: number; total: number; source: Option['source'] }[];
+  alts: {
+    window: TripWindow; mode: Mode; price: number; total: number; source: Option['source'];
+    /** every way there on these dates (allowed or not), for date-by-mode price tables */
+    ways?: { chain: Mode[]; price: number; outMin: number; source: Option['source']; ok: boolean }[];
+  }[];
 }
 
 export interface Costs {

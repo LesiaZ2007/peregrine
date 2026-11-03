@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { FOOD_LABEL, rates, STAY_LABEL } from '@/lib/costs';
+import { hotelLinks } from '@/lib/links';
 import { bearingName, fmtCoord } from '@/lib/geo';
 import { duration, money } from '@/lib/money';
 import type { Currency, SearchSpec, Trip } from '@/lib/types';
@@ -27,10 +28,10 @@ async function getJson<T>(url: string, fallback: string): Promise<T> {
   return j as T;
 }
 
-export default function TripSheet({ trip: t, spec, close, starred, onStar, compared, onCompare, been, onBeen, wished, onWish, onHide }: {
+export default function TripSheet({ trip: t, spec, close, starred, onStar, compared, onCompare, been, onBeen, wished, onWish, onHide, hidden = false }: {
   trip: Trip; spec: SearchSpec; close: () => void;
   starred: boolean; onStar: () => void; compared: boolean; onCompare: () => void;
-  been: boolean; onBeen: () => void; wished: boolean; onWish: () => void; onHide?: () => void;
+  been: boolean; onBeen: () => void; wished: boolean; onWish: () => void; onHide?: () => void; hidden?: boolean;
 }) {
   const cur: Currency = spec.currency;
   const ref = useRef<HTMLDivElement>(null);
@@ -89,7 +90,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
           <div className="sub">
             {t.dest.country.toUpperCase()} · {fmtCoord(t.dest.lat, t.dest.lon)} · {t.distanceKm.toLocaleString('en-GB')} KM {bearingName(t.originLat, t.originLon, t.dest.lat, t.dest.lon)} OF {t.originLabel.toUpperCase()}
           </div>
-          <p>{t.dest.blurb}</p>
+          <p>{t.dest.blurb}{!t.dest.adHoc && <> <Link href={`/place/${t.dest.id}`}>Everything about {t.dest.name} →</Link></>}</p>
           {t.dest.tags.length > 0 && (
             <div className="tags" style={{ marginTop: 10 }}>
               {t.dest.tags.map((g) => <span key={g} className="tag" style={{ cursor: 'default' }}>{g.replace(/-/g, ' ')}</span>)}
@@ -100,7 +101,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
             <button className={`btn small ${compared ? 'primary' : ''}`} onClick={onCompare}>{compared ? 'In compare' : 'Compare'}</button>
             <button className={`btn small ${wished ? 'primary' : ''}`} onClick={onWish}>{wished ? 'On wishlist' : 'Wishlist'}</button>
             <button className={`btn small ${been ? 'primary' : ''}`} onClick={onBeen}>{been ? 'Been there' : 'I’ve been'}</button>
-            {onHide && <button className="btn small ghost" onClick={onHide}>Hide place</button>}
+            {onHide && <button className={`btn small ${hidden ? 'primary' : 'ghost'}`} onClick={onHide}>{hidden ? 'Unhide place' : 'Hide place'}</button>}
           </div>
           {starred && <p className="muted" style={{ fontSize: '0.8rem', margin: '8px 0 0' }}>Starred. Put it on a weekend in <Link href="/trips">Trips</Link>.</p>}
         </div>
@@ -301,6 +302,18 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
                 <td>Beds · {c.nights} night{c.nights === 1 ? '' : 's'}, {STAY_LABEL[spec.stayStyle]}<div className="muted" style={{ fontSize: '0.78rem' }}>{spec.stayStyle === 'free' ? 'staying with friends' : `about ${money(r.bed, cur)} a night`}{t.best.overnight ? ' · one night on the move' : ''}</div></td>
                 <td className="num">{money(c.beds, cur)}</td>
               </tr>
+              {c.nights > 0 && (
+                <tr>
+                  <td colSpan={2} style={{ paddingTop: 0 }}>
+                    <div className="links">
+                      <span className="muted">Find a bed:</span>
+                      {hotelLinks(t.dest.name, t.dest.country, t.window.depart, t.window.ret, spec.travellers, spec.stayStyle).map((l) => (
+                        <a key={l.label} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td>Food · {c.days} day{c.days === 1 ? '' : 's'}, {FOOD_LABEL[spec.foodStyle]}<div className="muted" style={{ fontSize: '0.78rem' }}>about {money(r.food, cur)} a day</div></td>
                 <td className="num">{money(c.food, cur)}</td>

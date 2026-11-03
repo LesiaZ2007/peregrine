@@ -297,17 +297,26 @@ export function nearReasons(t: Trip, spec: SearchSpec): string[] {
 export function runSearch(spec: SearchSpec, input: SearchInput = {}): SearchResult {
   const main = searchCore(spec, input);
   if (!main.windows.length || !spec.origins.length) return main;
-  const loose = searchCore(relaxSpec(spec), input);
+  // places you hid stay visible, greyed, alongside the near misses
+  const hiddenIds = new Set(spec.exclude.filter((x) => !/^[A-Z]{2}$/.test(x)));
+  const loose = searchCore(relaxSpec({ ...spec, exclude: spec.exclude.filter((x) => !hiddenIds.has(x)) }), input);
   const have = new Set(main.trips.map((t) => t.dest.id));
   const near: Trip[] = [];
+  const hidden: Trip[] = [];
   for (const t of loose.trips) {
     if (have.has(t.dest.id)) continue;
+    if (hiddenIds.has(t.dest.id)) {
+      t.nearMiss = ['hidden by you', ...nearReasons(t, spec)];
+      t.flags = [...t.flags, 'hidden'];
+      hidden.push(t);
+      continue;
+    }
     const why = nearReasons(t, spec);
     if (!why.length) continue;
     t.nearMiss = why;
     near.push(t);
   }
-  main.near = near.slice(0, 30);
+  main.near = [...near.slice(0, 30), ...hidden];
   return main;
 }
 
@@ -403,7 +412,14 @@ function searchCore(spec: SearchSpec, input: SearchInput): SearchResult {
         const prev = alts.find((a) => a.window.depart === w.depart);
         if (!prev || t.total < prev.total) {
           if (prev) alts.splice(alts.indexOf(prev), 1);
-          alts.push({ window: w, mode: t.best.mode, price: t.best.price, total: t.total, source: t.best.source });
+          const chainOf = (o: Option) => (o.legs?.map((l) => l.mode) ?? [o.mode]).filter((m, i, a) => i === 0 || a[i - 1] !== m);
+          alts.push({
+            window: w, mode: t.best.mode, price: t.best.price, total: t.total, source: t.best.source,
+            ways: [
+              ...t.options.map((o) => ({ chain: chainOf(o), price: o.price + (o.extraEst ?? 0), outMin: o.outMin, source: o.source, ok: true })),
+              ...(t.blocked ?? []).map((b) => ({ chain: chainOf(b.option), price: b.option.price + (b.option.extraEst ?? 0), outMin: b.option.outMin, source: b.option.source, ok: false })),
+            ],
+          });
         }
         const cost = effort(t.best, spec) + t.stayCost;
         if (!best || cost < best.cost) best = { trip: t, cost };
@@ -442,7 +458,14 @@ export function applyGroundFare(t: Trip, fare: GroundFare, spec: SearchSpec): bo
   const ok = settleTrip(t, spec);
   if (!ok) t.options = before;
   const alt = t.alts.find((a) => a.window.depart === t.window.depart);
-  if (ok && alt) Object.assign(alt, { mode: t.best.mode, price: t.best.price, total: t.total, source: t.best.source });
+  if (ok && alt) {
+    Object.assign(alt, { mode: t.best.mode, price: t.best.price, total: t.total, source: t.best.source });
+    // the date-by-way table should show the real fare too
+    alt.ways = [
+      ...(alt.ways ?? []).filter((w) => !(w.chain.length === 1 && w.chain[0] === fare.mode)),
+      { chain: [fare.mode], price: real.price, outMin: real.outMin, source: 'live', ok: true },
+    ];
+  }
   return ok;
 }
 
