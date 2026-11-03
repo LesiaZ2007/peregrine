@@ -6,7 +6,7 @@ import { chatContext } from '@/lib/brief';
 import { toUsd } from '@/lib/money';
 import { EMPTY_IDS, EMPTY_PRESETS, K, useStored, type SavedPreset } from '@/lib/store';
 import { useTripActions } from '@/lib/useTripActions';
-import type { SearchResult, SearchSpec, Trip } from '@/lib/types';
+import type { SearchResult, SearchSpec, SortKey, Trip } from '@/lib/types';
 import PlanForm, { type CatalogEntry, type CountryEntry } from './PlanForm';
 import RouteChart from './RouteChart';
 import TripSheet from './TripSheet';
@@ -43,7 +43,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
       const r = await fetch('/api/search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(`Search failed (${r.status})`);
       setRes((await r.json()) as Res);
-      setRanFor(JSON.stringify(s));
+      setRanFor(JSON.stringify({ ...s, sort: 'score' }));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -65,8 +65,16 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
     if (first) setTimeout(() => run(first), 0);
   }, [run, setStored, spec]);
 
-  const stale = res && ranFor !== JSON.stringify(spec);
-  const trips = res?.trips ?? [];
+  // sorting is instant and client-side, so it doesn't make results "stale"
+  const sansSort = (x: SearchSpec) => JSON.stringify({ ...x, sort: 'score' });
+  const stale = res && ranFor !== sansSort(spec);
+  const trips = useMemo(() => {
+    const by: Record<SortKey, (t: Trip) => number> = {
+      score: (t) => -t.score, total: (t) => t.total, price: (t) => t.best.price, time: (t) => t.best.outMin,
+      hoursThere: (t) => -t.hoursThere, distance: (t) => t.distanceKm,
+    };
+    return [...(res?.trips ?? [])].sort((a, b) => by[spec.sort](a) - by[spec.sort](b) || a.total - b.total);
+  }, [res, spec.sort]);
   const near = res?.near ?? [];
   const [showNear, setShowNear] = useState(false);
   const cur = spec.currency;
@@ -142,6 +150,17 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
                 </div>
               </div>
             </div>
+            {trips.length > 1 && (
+              <div className="sortbar" role="group" aria-label="Sort results">
+                <span className="caps muted">Sort</span>
+                {([
+                  ['score', 'Best match'], ['total', 'Cheapest all in'], ['price', 'Cheapest travel'],
+                  ['time', 'Shortest journey'], ['hoursThere', 'Most time there'], ['distance', 'Nearest'],
+                ] as [SortKey, string][]).map(([k, label]) => (
+                  <button key={k} type="button" className="tag" aria-pressed={spec.sort === k} onClick={() => set({ sort: k })}>{label}</button>
+                ))}
+              </div>
+            )}
             {(res.notes.length > 0 || res.live.errors.length > 0) && (
               <div className="notes">
                 {res.notes.map((n) => <p key={n}>{n}</p>)}

@@ -90,6 +90,7 @@ function level(l: Leg): number {
   return (a + b) / 2;
 }
 const round = (n: number) => Math.max(1, Math.round(n));
+const hrs = (h: number) => (h < 1 ? `${Math.round(h * 60)} min` : `${Math.round(h * 2) / 2} h`);
 
 /** Fares rise close to departure and on Fridays/Sundays. */
 function demand(p: Profile): number {
@@ -138,7 +139,10 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     if (p.railcard) fare *= 0.7;
     const transfers = Math.min(4, Math.floor(km / 450) + (rail < 2 ? 1 : 0));
     const night = outMin > 8 * 60 && km > 600;
-    out.push(option('train', l, outMin, fare, 2.2, transfers, { overnight: night, note: night ? 'a night train saves a hotel night' : undefined }));
+    out.push(option('train', l, outMin, fare, 2.2, transfers, {
+      overnight: night, note: night ? 'a night train saves a hotel night' : undefined,
+      legs: ferry ? [{ mode: 'train', note: 'train to the coast' }, { mode: 'ferry', note: `ferry crossing, about ${hrs(ferry)}` }, { mode: 'train', note: 'train on the other side' }] : undefined,
+    }));
   }
 
   if (modes.bus && overland && bus > 0 && d < 2200) {
@@ -146,20 +150,30 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     const outMin = (km / 68) * 60 + 20 + (ferry ? ferry * 60 : 0);
     const fare = Math.max(7, km * 0.045 * (0.5 + lvl / 2)) * (0.85 + dem * 0.15);
     const night = outMin > 7 * 60;
-    out.push(option('bus', l, outMin, fare, 1.9, Math.floor(km / 900), { overnight: night, note: night ? 'overnight coach' : undefined }));
+    out.push(option('bus', l, outMin, fare, 1.9, Math.floor(km / 900), {
+      overnight: night, note: night ? 'overnight coach' : undefined,
+      legs: ferry ? [{ mode: 'bus', note: 'coach to the coast' }, { mode: 'ferry', note: `ferry crossing, about ${hrs(ferry)}` }, { mode: 'bus', note: 'coach on the other side' }] : undefined,
+    }));
   }
 
   if (modes.ferry && ferry !== null && ferry > 0.4) {
     const outMin = ferry * 60 + 90 + (d / 70) * 60 * 0.3;
     const fare = (18 + ferry * 9 + d * 0.02) * (0.7 + lvl * 0.3);
-    out.push(option('ferry', l, outMin, fare, 1.7, 1, { overnight: ferry >= 8, note: ferry >= 8 ? 'overnight sailing, cabin extra' : undefined }));
+    const toPort: Mode = rail > 0 ? 'train' : 'bus';
+    out.push(option('ferry', l, outMin, fare, 1.7, 1, {
+      overnight: ferry >= 8, note: ferry >= 8 ? 'overnight sailing, cabin extra' : undefined,
+      legs: [{ mode: toPort, note: `${toPort === 'train' ? 'train' : 'coach'} to the port` }, { mode: 'ferry', note: `sailing, about ${hrs(ferry)}` }],
+    }));
   }
 
   const roadOk = sameLand || (ferry !== null && ferry <= 10);
   if (modes.rideshare && roadOk && d < 1100 && d > 40 && BLABLA.has(regionOf(l.fromCc, l.fromRegion) as Region)) {
     const km = d * 1.3;
     const outMin = (km / 82) * 60 + 25 + (ferry ? ferry * 60 : 0);
-    out.push(option('rideshare', l, outMin, Math.max(5, km * 0.055 * (0.6 + lvl * 0.4)), 1.5, 0, { note: 'seat in a shared car, times depend on drivers' }));
+    out.push(option('rideshare', l, outMin, Math.max(5, km * 0.055 * (0.6 + lvl * 0.4)), 1.5, 0, {
+      note: 'seat in a shared car, times depend on drivers',
+      legs: ferry ? [{ mode: 'rideshare', note: 'shared car' }, { mode: 'ferry', note: `car ferry, about ${hrs(ferry)}` }] : undefined,
+    }));
   }
 
   if (modes.drive && roadOk && d < 1500) {
@@ -167,7 +181,10 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     const outMin = (km / 85) * 60 + 15 + (ferry ? ferry * 60 + 60 : 0);
     const costCar = km * 0.14 * (0.7 + lvl * 0.3) + (ferry ? 60 + ferry * 25 : 0);
     const share = Math.min(Math.max(1, p.travellers), 4);
-    out.push(option('drive', l, outMin, costCar / share, 1.3, 0, { note: `fuel and tolls split ${share} way${share > 1 ? 's' : ''}` }));
+    out.push(option('drive', l, outMin, costCar / share, 1.3, 0, {
+      note: `fuel and tolls split ${share} way${share > 1 ? 's' : ''}`,
+      legs: ferry ? [{ mode: 'drive', note: 'drive to the port' }, { mode: 'ferry', note: `car ferry, about ${hrs(ferry)}` }, { mode: 'drive', note: 'drive on' }] : undefined,
+    }));
   }
 
   return out;

@@ -1,6 +1,7 @@
 import airportsRaw from './data/airports.json';
 import { COUNTRIES } from './data/countries';
 import { DESTINATIONS } from './data/destinations';
+import images from './data/images.json';
 import { haversine } from './geo';
 import type { Destination } from './types';
 
@@ -40,6 +41,13 @@ export function searchAirports(q: string, max = 8): Airport[] {
     (a) => a.city.toLowerCase().startsWith(s) || a.name.toLowerCase().includes(s),
   ).sort((a, b) => b.size - a.size);
   return [...(exact ? [exact] : []), ...hits.filter((a) => a !== exact)].slice(0, max);
+}
+
+// photos from Wikipedia lead images (see scripts/build-images.mjs)
+const IMAGES = images as Record<string, { src: string; page: string }>;
+for (const d of DESTINATIONS) {
+  const img = IMAGES[d.id];
+  if (img) { d.thumb = img.src; d.imagePage = img.page; }
 }
 
 export const DEST_BY_ID = new Map(DESTINATIONS.map((d) => [d.id, d]));

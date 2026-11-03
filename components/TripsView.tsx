@@ -10,7 +10,8 @@ import { EMPTY_IDS, EMPTY_PLAN, EMPTY_PRESETS, K, useStored, type PlanSlot, type
 import type { SearchResult, SearchSpec, Trip, TripWindow } from '@/lib/types';
 import { useTripActions } from '@/lib/useTripActions';
 import ChatDock from './ChatDock';
-import { LineBadge } from './icons';
+import { LineBadge, ModeChain } from './icons';
+import Photo from './Photo';
 import TripSheet from './TripSheet';
 import { Star } from './TripSlip';
 
@@ -165,7 +166,7 @@ export default function TripsView({ names }: { names: Record<string, string> }) 
                           {c.trips.map((x) => (
                             <div className="cand" key={x.key}>
                               <span><b>{x.dest.name}</b>{x.nearMiss?.length ? <span className="near-why" style={{ fontSize: '0.75rem' }}> · outside: {x.nearMiss[0]}</span> : null}</span>
-                              <span><LineBadge mode={x.best.mode} /> <span className="mono">{duration(x.best.outMin)}</span></span>
+                              <span><ModeChain option={x.best} /> <span className="mono">{duration(x.best.outMin)}</span></span>
                               <span className="mono">{m(x.total)} <span className={`stamp ${x.best.source === 'live' ? 'live' : 'est'}`}>{x.best.source === 'live' ? 'live' : 'est.'}</span></span>
                               <span className="row" style={{ gap: 4 }}>
                                 <button className="btn small" onClick={() => setSlot(w, { status: 'trip', tripKey: x.dest.id, checked: { price: x.best.price, total: x.total, mode: x.best.mode, source: x.best.source, at: new Date().toISOString() }, note: x.nearMiss?.length ? `outside your settings: ${x.nearMiss.join('; ')}` : undefined })}>Choose</button>
@@ -207,7 +208,8 @@ export default function TripsView({ names }: { names: Record<string, string> }) 
         {!acts.starred.length && <p className="muted">Press ☆ on any result in the <Link href="/">planner</Link>.</p>}
         <div className="card-list">
           {acts.starred.map(({ key, trip: t, savedAt }) => (
-            <div className="card" key={key}>
+            <div className="card card-photo" key={key}>
+              <Photo dest={t.dest} w={240} className="card-img" />
               <div>
                 <div className="row" style={{ gap: 6 }}>
                   <Star on onClick={() => acts.toggleStar(t)} label={t.dest.name} />
@@ -215,7 +217,7 @@ export default function TripsView({ names }: { names: Record<string, string> }) 
                   <span className="muted">{t.dest.country}</span>
                 </div>
                 <div className="row" style={{ marginTop: 6, gap: 8 }}>
-                  <LineBadge mode={t.best.mode} />
+                  <ModeChain option={t.best} />
                   <span className="mono" style={{ fontSize: '0.82rem' }}>
                     {t.window.label} · {duration(t.best.outMin)} · {m(t.best.price)} {t.best.source === 'live' ? 'live' : 'est.'} · {m(t.total)} all in
                   </span>

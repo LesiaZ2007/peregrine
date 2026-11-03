@@ -8,7 +8,8 @@ import { K, useStored } from '@/lib/store';
 import type { SearchSpec, Trip } from '@/lib/types';
 import { useTripActions } from '@/lib/useTripActions';
 import ChatDock from './ChatDock';
-import { LineBadge, MODE_LABEL } from './icons';
+import { MODE_LABEL, ModeChain } from './icons';
+import Photo from './Photo';
 import { Star } from './TripSlip';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -33,10 +34,10 @@ export default function CompareView() {
     { label: 'Dates', cell: (t) => <>{t.window.label}<div className="muted mono">{t.window.nights} night{t.window.nights === 1 ? '' : 's'}</div></> },
     { label: 'Distance', val: (t) => t.distanceKm, better: 'low', cell: (t) => <span className="mono">{t.distanceKm.toLocaleString('en-GB')} km</span> },
     {
-      label: 'Best way', val: (t) => t.best.price, better: 'low',
+      label: 'Best way', val: (t) => t.best.price + (t.best.extraEst ?? 0), better: 'low',
       cell: (t) => (
         <>
-          <LineBadge mode={t.best.mode} /> <b className="mono">{m(t.best.price)}</b>{' '}
+          <ModeChain option={t.best} /> <b className="mono">{m(t.best.price + (t.best.extraEst ?? 0))}</b>{' '}
           <span className={`stamp ${t.best.source === 'live' ? 'live' : 'est'}`}>{t.best.source === 'live' ? 'live' : 'est.'}</span>
           {t.best.carrier && <div className="muted" style={{ fontSize: '0.78rem' }}>{t.best.carrier}</div>}
         </>
@@ -118,6 +119,7 @@ export default function CompareView() {
                 <th />
                 {list.map((t) => (
                   <th key={t.key} data-mode={t.best.mode}>
+                    <Photo dest={t.dest} w={640} className="cmp-photo" />
                     <div className="cmp-head">
                       <Star on={acts.isStarred(t)} onClick={() => acts.toggleStar(t)} label={t.dest.name} />
                       <div>

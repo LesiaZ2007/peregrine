@@ -13,6 +13,7 @@ export const DEFAULT_WHEN: When = {
   to: '',
   nightsMin: 2,
   nightsMax: 4,
+  freeDays: [],
   depart: '',
   ret: '',
   leaveAfter: '14:00',

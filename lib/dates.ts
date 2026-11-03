@@ -87,11 +87,17 @@ export function tripWindows(when: When, today: string = fmtDay(new Date())): Tri
   if (!to || to < from) return out;
   const nMin = Math.max(0, when.nightsMin);
   const nMax = Math.max(nMin, when.nightsMax);
+  const free = new Set(when.freeDays ?? []);
+  const allFree = (a: string, b: string) => {
+    if (!free.size) return true;
+    for (let d = a; d <= b; d = addDays(d, 1)) if (!free.has(weekday(d))) return false;
+    return true;
+  };
   const cands: TripWindow[] = [];
   for (let n = nMin; n <= nMax; n++) {
     for (let d = from; addDays(d, n) <= to; d = addDays(d, 1)) {
       const r = addDays(d, n);
-      if (clear(d, r)) cands.push(makeWindow(d, r, when));
+      if (clear(d, r) && allFree(d, r)) cands.push(makeWindow(d, r, when));
     }
   }
   if (cands.length <= MAX_WINDOWS) return cands;

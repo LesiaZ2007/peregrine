@@ -4,6 +4,7 @@
 import { flightHint } from './airlines';
 import { airport, matchPlace, nearestAirports } from './catalog';
 import { costTotal, stayCosts } from './costs';
+import { COUNTRIES } from './data/countries';
 import { DESTINATIONS } from './data/destinations';
 import { daysBetween, fmtDay, hours, monthOf, tripWindows, weekday } from './dates';
 import { estimateModes, type Leg } from './estimate';
@@ -86,7 +87,7 @@ function effort(o: Option, spec: SearchSpec): number {
   const w = spec.weights;
   const perHour = 3 + 18 * (w.time / Math.max(0.1, w.price + w.time));
   // real prices are worth a small edge over guesses
-  return o.price + (o.outMin / 60) * perHour * 2 + o.transfers * 4 * (0.5 + w.comfort) - (o.source === 'live' ? 3 : 0);
+  return o.price + (o.extraEst ?? 0) + (o.outMin / 60) * perHour * 2 + o.transfers * 4 * (0.5 + w.comfort) - (o.source === 'live' ? 3 : 0);
 }
 
 function keepOption(o: Option, spec: SearchSpec): boolean {
@@ -94,7 +95,7 @@ function keepOption(o: Option, spec: SearchSpec): boolean {
     o.outMin / 60 <= spec.maxLegHours &&
     o.transfers <= spec.maxTransfers &&
     (spec.overnight || !o.overnight) &&
-    (spec.budgetTransport == null || o.price <= spec.budgetTransport)
+    (spec.budgetTransport == null || o.price + (o.extraEst ?? 0) <= spec.budgetTransport)
   );
 }
 
@@ -118,13 +119,37 @@ function groundHours(f: FlightFare | undefined, w: TripWindow, fallback: number)
   return Math.round((b - a) / 3_600_000 - AIRPORT_AFTER_H - AIRPORT_BEFORE_H);
 }
 
+/** Getting between a town and an airport that's a real trip away (over 25 km). */
+function transfer(lat: number, lon: number, code: string | undefined, cc: string): { min: number; usd: number; mode: 'train' | 'bus'; km: number } | null {
+  const a = code ? airport(code) : undefined;
+  if (!a) return null;
+  const km = haversine(lat, lon, a.lat, a.lon);
+  if (km <= 25) return null;
+  const mode = (COUNTRIES[cc]?.railScore ?? 0) >= 2 ? 'train' : 'bus';
+  return { min: Math.round((km * 1.25) / 65 * 60 + 15), usd: Math.round((4 + km * 0.07) * 2), mode, km: Math.round(km) };
+}
+
 function flightOption(f: FlightFare, leg: Leg, w: TripWindow, spec: SearchSpec): Option {
   const bag = spec.checkedBag ? 70 : 0;
   const air = f.airMin ?? Math.round((leg.km / 780) * 60 + 35);
   const times = f.outDep && f.inDep ? `out ${f.outDep.slice(11, 16)}, back ${f.inDep.slice(11, 16)}` : '';
+  const toAir = f.toAirport ?? leg.toAir;
+  const before = transfer(leg.fromLat, leg.fromLon, f.from, leg.fromCc);
+  const after = transfer(leg.toLat, leg.toLon, toAir, leg.toCc);
+  const word = (m: 'train' | 'bus') => (m === 'train' ? 'train' : 'coach');
+  const legs: Option['legs'] = before || after
+    ? [
+        ...(before ? [{ mode: before.mode, note: `${word(before.mode)} to ${f.from}, ${before.km} km, about ${Math.round(before.min / 6) / 10} h` }] : []),
+        { mode: 'flight' as const, note: `fly ${f.from} → ${toAir ?? leg.toName}` },
+        ...(after ? [{ mode: after.mode, note: `${word(after.mode)} from ${toAir} to ${leg.toName}, ${after.km} km, about ${Math.round(after.min / 6) / 10} h` }] : []),
+      ]
+    : undefined;
+  const extraEst = (before?.usd ?? 0) + (after?.usd ?? 0);
   return {
     mode: 'flight',
-    outMin: air + (AIRPORT_BEFORE_H + AIRPORT_AFTER_H) * 60,
+    legs,
+    extraEst: extraEst || undefined,
+    outMin: air + (AIRPORT_BEFORE_H + AIRPORT_AFTER_H) * 60 + (before?.min ?? 0) + (after?.min ?? 0),
     transfers: f.stops,
     stops: f.stops,
     price: Math.round(f.priceUsd + bag),
@@ -133,7 +158,7 @@ function flightOption(f: FlightFare, leg: Leg, w: TripWindow, spec: SearchSpec):
     overnight: false,
     carrier: f.carrier,
     note: [f.source, times, spec.checkedBag ? '+ about $70 for a checked bag' : 'hand luggage'].filter(Boolean).join(' · '),
-    hoursThere: Number.isFinite(groundHours(f, w, NaN)) ? groundHours(f, w, NaN) : undefined,
+    hoursThere: Number.isFinite(groundHours(f, w, NaN)) ? Math.round(groundHours(f, w, NaN) - ((after?.min ?? 0) * 2) / 60) : undefined,
     links: [{ label: f.source === 'Ryanair' ? 'Book on Ryanair' : 'Google Travel', url: f.link }, ...linksFor('flight', { ...leg, fromAir: f.from, toAir: f.toAirport ?? leg.toAir })],
   };
 }
@@ -163,7 +188,7 @@ export function settleTrip(t: Trip, spec: SearchSpec): boolean {
   const nightsPaid = Math.max(0, t.window.nights - (best.overnight ? 1 : 0));
   t.costs = stayCosts(t.dest, nightsPaid, Math.max(t.hoursThere, 4), spec);
   t.stayCost = costTotal(t.costs);
-  t.total = best.price + t.stayCost;
+  t.total = best.price + (best.extraEst ?? 0) + t.stayCost;
   if (spec.budgetTotal != null && t.total > spec.budgetTotal) return false;
   return true;
 }
@@ -187,7 +212,8 @@ export function nearReasons(t: Trip, spec: SearchSpec): string[] {
   const r: string[] = [];
   const usd = (v: number) => `$${Math.round(v)}`;
   if (spec.budgetTotal != null && t.total > spec.budgetTotal) r.push(`${usd(t.total - spec.budgetTotal)} over your all-in budget`);
-  if (spec.budgetTransport != null && t.best.price > spec.budgetTransport) r.push(`${usd(t.best.price - spec.budgetTransport)} over your travel budget`);
+  const travel = t.best.price + (t.best.extraEst ?? 0);
+  if (spec.budgetTransport != null && travel > spec.budgetTransport) r.push(`${usd(travel - spec.budgetTransport)} over your travel budget`);
   const h = t.best.outMin / 60 - spec.maxLegHours;
   if (h > 0) r.push(`${Math.ceil(h * 2) / 2} h longer than your journey limit`);
   if (t.hoursThere < spec.minHoursThere) r.push(`${spec.minHoursThere - t.hoursThere} h short of your time there`);
@@ -229,14 +255,16 @@ function searchCore(spec: SearchSpec, input: SearchInput): SearchResult {
   for (const f of input.flights ?? []) {
     const w = winBy.get(f.depart);
     if (!w || f.ret !== w.ret || !f.priceUsd || !flightFits(f, w, spec)) continue;
-    const byAir = f.toAirport ? DESTINATIONS.find((d) => d.airports[0] === f.toAirport) : undefined;
-    const d = byAir ?? matchPlace(f.name, f.country, f.lat, f.lon, f.thumb, f.toAirport);
-    if (!d) continue;
-    if (d.adHoc) extra.set(d.id, d);
-    const m = fareBy.get(d.id) ?? new Map<string, FlightFare>();
-    const prev = m.get(f.depart);
-    if (!prev || f.priceUsd < prev.priceUsd) m.set(f.depart, f);
-    fareBy.set(d.id, m);
+    // a fare into an airport serves every place that uses that airport (Lisbon, Sintra, Évora…)
+    const served = f.toAirport ? DESTINATIONS.filter((d) => d.airports.includes(f.toAirport!)) : [];
+    const places = served.length ? served : [matchPlace(f.name, f.country, f.lat, f.lon, f.thumb, f.toAirport)].filter((d): d is Destination => !!d);
+    for (const d of places) {
+      if (d.adHoc) extra.set(d.id, d);
+      const m = fareBy.get(d.id) ?? new Map<string, FlightFare>();
+      const prev = m.get(f.depart);
+      if (!prev || f.priceUsd < prev.priceUsd) m.set(f.depart, f);
+      fareBy.set(d.id, m);
+    }
   }
 
   const pool = [...DESTINATIONS, ...extra.values()].filter((d) => inScope(d, spec, firstMonth));

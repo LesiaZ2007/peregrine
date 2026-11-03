@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tripWindows, weekday } from '@/lib/dates';
+import { addDays, tripWindows, weekday } from '@/lib/dates';
 import { estimateModes, type Leg } from '@/lib/estimate';
 import { haversine } from '@/lib/geo';
 import { applyGroundFare, planLive, runSearch } from '@/lib/search';
@@ -47,6 +47,16 @@ describe('trip windows', () => {
       expect(x.nights).toBeLessThanOrEqual(5);
       expect(x.ret <= '2026-12-31').toBe(true);
     }
+  });
+
+  it('date range can be limited to weekends or picked days', () => {
+    const base = { ...DEFAULT_WHEN, kind: 'window' as const, from: '2026-12-01', to: '2026-12-31', nightsMin: 1, nightsMax: 3 };
+    const wk = tripWindows({ ...base, freeDays: [5, 6, 0] }, TODAY);
+    expect(wk.length).toBeGreaterThan(0);
+    for (const x of wk) for (let d = x.depart; d <= x.ret; d = addDays(d, 1)) expect([5, 6, 0]).toContain(weekday(d));
+    const thuSun = tripWindows({ ...base, freeDays: [4, 5, 6, 0] }, TODAY);
+    expect(thuSun.some((x) => weekday(x.depart) === 4)).toBe(true);
+    expect(tripWindows({ ...base, nightsMin: 4, nightsMax: 5, freeDays: [5, 6, 0] }, TODAY)).toHaveLength(0);
   });
 
   it('exact dates give one window', () => {

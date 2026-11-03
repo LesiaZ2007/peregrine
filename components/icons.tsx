@@ -70,6 +70,22 @@ export function ModeGlyph({ mode }: { mode: Mode }) {
   );
 }
 
+/** All the kinds of transport a journey uses, in order ("COACH + FLY + COACH"). */
+export function ModeChain({ option }: { option: { mode: Mode; legs?: { mode: Mode }[] } }) {
+  const seq = (option.legs?.map((l) => l.mode) ?? [option.mode]).filter((m, i, a) => i === 0 || a[i - 1] !== m);
+  if (seq.length === 1) return <LineBadge mode={seq[0]} />;
+  return (
+    <span className="mode-chain" title={seq.map((m) => MODE_LABEL[m]).join(' + ')}>
+      {seq.map((m, i) => (
+        <span key={i} className="mode-chain-item">
+          {i > 0 && <span className="plus" aria-hidden="true">+</span>}
+          <LineBadge mode={m} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function LineBadge({ mode, children }: { mode: Mode; children?: React.ReactNode }) {
   return (
     <span className="line-badge" data-mode={mode}>

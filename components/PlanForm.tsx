@@ -25,6 +25,19 @@ export const TAGS: Tag[] = [
   'christmas-markets', 'student-city', 'big-city', 'quiet',
 ];
 const tagName = (t: string) => t.replace(/-/g, ' ');
+const WEEKEND = [5, 6, 0];
+const sameDays = (a: number[], b: number[]) => a.length === b.length && b.every((d) => a.includes(d));
+/** longest run of consecutive free weekdays (wrapping round the week) */
+const maxRun = (days: number[]) => {
+  if (days.length >= 7) return 99;
+  let best = 0;
+  for (let start = 0; start < 7; start++) {
+    let n = 0;
+    while (n < 7 && days.includes((start + n) % 7)) n++;
+    best = Math.max(best, n);
+  }
+  return best;
+};
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface Props {
@@ -245,6 +258,21 @@ export default function PlanForm({ spec, set, catalog, countries, quota, hasLive
             <div className="grid2">
               <Num label="Nights, at least" value={w.nightsMin} onChange={(v) => setWhen({ nightsMin: v ?? 0 })} />
               <Num label="Nights, at most" value={w.nightsMax} onChange={(v) => setWhen({ nightsMax: v ?? w.nightsMin })} />
+            </div>
+            <div className="field">
+              <span className="label">Days you’re free</span>
+              <Seg
+                label="Days you're free"
+                value={!w.freeDays.length ? 'any' : sameDays(w.freeDays, WEEKEND) ? 'weekend' : 'pick'}
+                onChange={(v) => setWhen({ freeDays: v === 'any' ? [] : v === 'weekend' ? WEEKEND : w.freeDays.length && !sameDays(w.freeDays, WEEKEND) ? w.freeDays : [4, 5, 6, 0] })}
+                options={[['any', 'Any day'], ['weekend', 'Weekends only'], ['pick', 'Pick days']]}
+              />
+              {w.freeDays.length > 0 && !sameDays(w.freeDays, WEEKEND) && (
+                <DayPicks label="Every day of the trip must be one of" days={w.freeDays} options={[1, 2, 3, 4, 5, 6, 0]} onChange={(freeDays) => setWhen({ freeDays })} />
+              )}
+              {w.freeDays.length > 0 && w.nightsMin > maxRun(w.freeDays) - 1 && (
+                <small className="muted">Your free days allow at most {Math.max(0, maxRun(w.freeDays) - 1)} nights in a row; lower “nights, at least”.</small>
+              )}
             </div>
           </>
         )}

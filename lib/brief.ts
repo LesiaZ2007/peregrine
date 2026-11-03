@@ -4,7 +4,7 @@ import type { Currency, SearchSpec, Trip } from './types';
 
 export function tripBrief(t: Trip, cur: Currency): string {
   const opts = t.options
-    .map((o) => `${o.mode} ${money(o.price, cur)}${o.source === 'live' ? ' live' : ' est.'} ${Math.round(o.outMin / 6) / 10}h ${o.transfers}chg${o.overnight ? ' overnight' : ''}`)
+    .map((o) => `${o.legs ? o.legs.map((l) => l.mode).join('+') : o.mode} ${money(o.price, cur)}${o.extraEst ? ` + ${money(o.extraEst, cur)} est. transfers` : ''}${o.source === 'live' ? ' live' : ' est.'} ${Math.round(o.outMin / 6) / 10}h ${o.transfers}chg${o.overnight ? ' overnight' : ''}`)
     .join('; ');
   const c = t.costs;
   return [

@@ -5,7 +5,8 @@ import { FOOD_LABEL, rates, STAY_LABEL } from '@/lib/costs';
 import { bearingName, fmtCoord } from '@/lib/geo';
 import { duration, money } from '@/lib/money';
 import type { Currency, SearchSpec, Trip } from '@/lib/types';
-import { LineBadge, MODE_LABEL } from './icons';
+import { LineBadge, MODE_LABEL, ModeChain } from './icons';
+import Photo from './Photo';
 import { Star } from './TripSlip';
 
 interface Offer { price: number; airline: string; stops: number; durationMin: number; departTime: string; arriveTime: string; from: string; to: string }
@@ -77,10 +78,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
     <>
       <div className="scrim" onClick={close} />
       <aside className="sheet" role="dialog" aria-modal="true" aria-label={t.dest.name} tabIndex={-1} ref={ref}>
-        {t.dest.thumb && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="sheet-thumb" src={t.dest.thumb} alt="" />
-        )}
+        <Photo dest={t.dest} w={960} className="sheet-photo" credit />
         {t.nearMiss?.length ? <div className="near-banner">Just outside your settings: {t.nearMiss.join(' · ')}</div> : null}
         <div className="sheet-head">
           <button className="btn small close" onClick={close}>Close</button>
@@ -117,7 +115,12 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
               {t.options.map((o) => (
                 <tr key={o.mode}>
                   <td>
-                    <LineBadge mode={o.mode} /> {o.mode === t.best.mode && <span className="flag">best fit</span>}
+                    <ModeChain option={o} /> {o.mode === t.best.mode && <span className="flag">best fit</span>}
+                    {o.legs && (
+                      <ol className="legs">
+                        {o.legs.map((l, k) => <li key={k} data-mode={l.mode}>{l.note}</li>)}
+                      </ol>
+                    )}
                     {o.carrier && <div style={{ fontSize: '0.8rem', marginTop: 4 }}>{o.carrier}</div>}
                     {o.note && <div className="muted" style={{ fontSize: '0.78rem', marginTop: 2 }}>{o.note}</div>}
                     <div className="links">
@@ -132,6 +135,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
                   <td className="num">
                     {o.source === 'live' || o.priceHigh <= o.price ? money(o.price, cur) : `${money(o.price, cur)}–${money(o.priceHigh, cur).replace(/^\D/, '')}`}
                     <div><span className={`stamp ${o.source === 'live' ? 'live' : 'est'}`}>{o.source === 'live' ? 'live' : 'est.'}</span></div>
+                    {o.extraEst ? <div className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>+ {money(o.extraEst, cur)} <span className="stamp est">est.</span><br />transfers</div> : null}
                   </td>
                 </tr>
               ))}
@@ -265,6 +269,7 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
           <table className="ledger">
             <tbody>
               <tr><td>{MODE_LABEL[t.best.mode]}, return <span className={`stamp ${t.best.source === 'live' ? 'live' : 'est'}`}>{t.best.source === 'live' ? 'live' : 'est.'}</span></td><td className="num">{money(t.best.price, cur)}</td></tr>
+              {t.best.extraEst ? <tr><td>Transfers to and from the airport <span className="stamp est">est.</span><div className="muted" style={{ fontSize: '0.78rem' }}>{t.best.legs?.filter((l) => l.mode !== t.best.mode).map((l) => l.note).join(' · ')}</div></td><td className="num">{money(t.best.extraEst, cur)}</td></tr> : null}
               <tr>
                 <td>Beds · {c.nights} night{c.nights === 1 ? '' : 's'}, {STAY_LABEL[spec.stayStyle]}<div className="muted" style={{ fontSize: '0.78rem' }}>{spec.stayStyle === 'free' ? 'staying with friends' : `about ${money(r.bed, cur)} a night`}{t.best.overnight ? ' · one night on the move' : ''}</div></td>
                 <td className="num">{money(c.beds, cur)}</td>

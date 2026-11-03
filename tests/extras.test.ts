@@ -75,6 +75,25 @@ describe('flight guidance', () => {
   });
 });
 
+describe('multi-mode journeys', () => {
+  it('a ferry trip names the way to the port', () => {
+    const r = runSearch(spec({ scope: 'places', places: ['palma'], when: { ...DEFAULT_WHEN, weekendsAhead: 1 }, maxLegHours: 14 }), { today: TODAY });
+    const ferry = r.trips[0]?.options.find((o) => o.mode === 'ferry');
+    expect(ferry?.legs?.map((l) => l.mode)).toEqual(['train', 'ferry']);
+  });
+
+  it('a flight to an airport far from town adds the transfer leg and its cost', () => {
+    const fare = {
+      from: 'MAD', depart: '2026-11-06', ret: '2026-11-08', toAirport: 'LIS', name: 'Lisbon', country: 'Portugal', lat: 38.77, lon: -9.13,
+      priceUsd: 40, stops: 0, carrier: 'Ryanair', link: 'x', source: 'Ryanair' as const,
+    };
+    const r = runSearch(spec({ scope: 'places', places: ['evora'], when: { ...DEFAULT_WHEN, weekendsAhead: 1 }, maxLegHours: 12 }), { today: TODAY, flights: [fare] });
+    const f = r.trips[0]?.options.find((o) => o.mode === 'flight');
+    expect(f?.legs?.map((l) => l.mode)).toEqual(['flight', 'train']);
+    expect(f?.extraEst).toBeGreaterThan(0);
+  });
+});
+
 describe('near misses', () => {
   it('relaxes limits a little', () => {
     const s = relaxSpec(spec({ budgetTotal: 100, maxLegHours: 5 }));

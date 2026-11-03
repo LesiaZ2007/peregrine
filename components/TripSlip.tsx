@@ -2,7 +2,8 @@
 import { bearingName } from '@/lib/geo';
 import { duration, money } from '@/lib/money';
 import type { Currency, Trip } from '@/lib/types';
-import { LineBadge } from './icons';
+import { ModeChain } from './icons';
+import Photo from './Photo';
 
 interface Props {
   trip: Trip;
@@ -47,7 +48,9 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
       aria-label={`${t.dest.name}, ${money(b.price, cur)} by ${b.mode}`}
     >
       <span className="rank">{near ? '—' : String(rank).padStart(2, '0')}</span>
-      <span className="place">
+      <span className="place has-photo">
+        <Photo dest={t.dest} w={250} className="slip-photo" />
+        <span className="place-text">
         <b>
           {t.dest.name}
           {t.flags.includes('wish') && <span className="flag">wishlist</span>}
@@ -62,10 +65,11 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
         ) : (
           t.reasons.length > 0 && <span className="why">{t.reasons.slice(0, 3).join(' · ')}</span>
         )}
+        </span>
       </span>
       <span className="how">
         <span className="row" style={{ gap: 8 }}>
-          <LineBadge mode={b.mode} />
+          <ModeChain option={b} />
           <span className="mono">{duration(b.outMin)}{b.transfers ? ` · ${b.transfers} chg` : ''}</span>
         </span>
         {others.length > 0 && (
@@ -80,7 +84,7 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
         <span className="mono">{t.hoursThere} h there{t.window.nights ? ` · ${t.window.nights} nt` : ''}</span>
       </span>
       <span className="price">
-        <span className="big">{money(b.price, cur)}</span>
+        <span className="big">{money(b.price + (b.extraEst ?? 0), cur)}</span>
         <span>
           <span className={`stamp ${b.source === 'live' ? 'live' : 'est'}`}>{b.source === 'live' ? 'live' : 'est.'}</span>
         </span>

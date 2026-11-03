@@ -32,6 +32,8 @@ export interface Destination {
   /** true when the place came from a live result rather than the catalog */
   adHoc?: boolean;
   thumb?: string;
+  /** where the photo comes from (Wikipedia article), for credit */
+  imagePage?: string;
 }
 
 export type Mode = 'flight' | 'train' | 'bus' | 'ferry' | 'drive' | 'rideshare';
@@ -64,6 +66,8 @@ export interface When {
   to: string;
   nightsMin: number;
   nightsMax: number;
+  /** date range: weekdays you're free (0 = Sun … 6 = Sat). Every day of a trip must be one. Empty = any day. */
+  freeDays: number[];
   /** exact dates */
   depart: string;
   ret: string;
@@ -131,9 +135,20 @@ export interface Link {
   url: string;
 }
 
+/** One part of a journey that uses more than one kind of transport. */
+export interface Hop {
+  mode: Mode;
+  /** e.g. "coach to LIS, about 1h 40m" */
+  note: string;
+}
+
 /** One way of doing the round trip to a destination. Prices are USD per person, round trip. */
 export interface Option {
   mode: Mode;
+  /** set when the journey needs several kinds of transport, in order */
+  legs?: Hop[];
+  /** estimated cost of the extra legs (e.g. airport transfers), USD return; included in totals */
+  extraEst?: number;
   /** one-way door-to-door minutes */
   outMin: number;
   transfers: number;
