@@ -21,7 +21,8 @@ export default function TopBar() {
 
   const nav = [
     { href: '/', label: 'Plan' },
-    { href: '/saved', label: 'Saved' },
+    { href: '/trips', label: 'Trips' },
+    { href: '/compare', label: 'Compare' },
     { href: '/about', label: 'How it works' },
   ];
   return (

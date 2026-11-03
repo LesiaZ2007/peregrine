@@ -70,9 +70,23 @@ export interface SavedPreset {
   spec: SearchSpec;
 }
 
+export interface PlanSlot {
+  /** weekend window start (YYYY-MM-DD) */
+  depart: string;
+  ret: string;
+  /** starred trip key or null for "staying put" */
+  tripKey: string | null;
+  status: 'open' | 'home' | 'trip';
+  /** a fresh price for exactly these dates, if checked */
+  checked?: { price: number; total: number; mode: string; source: 'live' | 'estimate'; at: string } | null;
+  note?: string;
+}
+
 export const K = {
   spec: 'pg:spec',
   saved: 'pg:saved',
+  compare: 'pg:compare',
+  plan: 'pg:plan',
   presets: 'pg:presets',
   visited: 'pg:visited',
   wishlist: 'pg:wishlist',
@@ -81,3 +95,6 @@ export const K = {
 export const EMPTY_SAVED: SavedTrip[] = [];
 export const EMPTY_PRESETS: SavedPreset[] = [];
 export const EMPTY_IDS: string[] = [];
+export const EMPTY_TRIPS: Trip[] = [];
+export const EMPTY_PLAN: PlanSlot[] = [];
+export const MAX_COMPARE = 4;

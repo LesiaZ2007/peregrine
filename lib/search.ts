@@ -1,17 +1,18 @@
 // The search engine. Pure: live fares are passed in, so it runs the same in tests.
 // Flights are ONLY ever real fares. Ground modes start as estimates and get swapped for
 // real fares (e.g. FlixBus) when a provider has them.
+import { flightHint } from './airlines';
 import { airport, matchPlace, nearestAirports } from './catalog';
+import { costTotal, stayCosts } from './costs';
 import { DESTINATIONS } from './data/destinations';
 import { daysBetween, fmtDay, hours, monthOf, tripWindows, weekday } from './dates';
 import { estimateModes, type Leg } from './estimate';
 import { haversine } from './geo';
 import { linksFor } from './links';
 import type {
-  Destination, FlightFare, GroundFare, HomeBase, Option, SearchResult, SearchSpec, StayStyle, Trip, TripWindow,
+  Destination, FlightFare, GroundFare, HomeBase, Option, SearchResult, SearchSpec, Trip, TripWindow,
 } from './types';
 
-export const STAY_FACTOR: Record<StayStyle, number> = { free: 0.4, hostel: 1, budget: 1.6, mid: 2.6 };
 export const MAX_GOOGLE_CALLS = 6;
 export const MAX_RYANAIR_CALLS = 24;
 /** time to get to the airport + security before a flight, and out the other end */
@@ -160,16 +161,63 @@ export function settleTrip(t: Trip, spec: SearchSpec): boolean {
   t.hoursThere = best.hoursThere ?? est;
   if (t.hoursThere < spec.minHoursThere) return false;
   const nightsPaid = Math.max(0, t.window.nights - (best.overnight ? 1 : 0));
-  t.stayCost = Math.round(t.dest.daily * STAY_FACTOR[spec.stayStyle] * Math.max(nightsPaid, 0.5));
+  t.costs = stayCosts(t.dest, nightsPaid, Math.max(t.hoursThere, 4), spec);
+  t.stayCost = costTotal(t.costs);
   t.total = best.price + t.stayCost;
   if (spec.budgetTotal != null && t.total > spec.budgetTotal) return false;
   return true;
 }
 
+/** Loosen the hard limits a little, to find places that only just miss. */
+export function relaxSpec(spec: SearchSpec): SearchSpec {
+  return {
+    ...spec,
+    budgetTotal: spec.budgetTotal == null ? null : spec.budgetTotal * 1.3,
+    budgetTransport: spec.budgetTransport == null ? null : spec.budgetTransport * 1.3,
+    maxLegHours: spec.maxLegHours + 2,
+    minHoursThere: Math.max(0, spec.minHoursThere - 8),
+    maxTransfers: spec.maxTransfers + 1,
+    maxDistanceKm: spec.maxDistanceKm > 0 ? spec.maxDistanceKm * 1.25 : 0,
+    minDistanceKm: spec.minDistanceKm * 0.8,
+  };
+}
+
+/** Why a trip found with relaxed limits breaks the real ones. Empty if it doesn't. */
+export function nearReasons(t: Trip, spec: SearchSpec): string[] {
+  const r: string[] = [];
+  const usd = (v: number) => `$${Math.round(v)}`;
+  if (spec.budgetTotal != null && t.total > spec.budgetTotal) r.push(`${usd(t.total - spec.budgetTotal)} over your all-in budget`);
+  if (spec.budgetTransport != null && t.best.price > spec.budgetTransport) r.push(`${usd(t.best.price - spec.budgetTransport)} over your travel budget`);
+  const h = t.best.outMin / 60 - spec.maxLegHours;
+  if (h > 0) r.push(`${Math.ceil(h * 2) / 2} h longer than your journey limit`);
+  if (t.hoursThere < spec.minHoursThere) r.push(`${spec.minHoursThere - t.hoursThere} h short of your time there`);
+  if (t.best.transfers > spec.maxTransfers) r.push('one change more than you allow');
+  if (spec.maxDistanceKm > 0 && t.distanceKm > spec.maxDistanceKm) r.push(`${t.distanceKm - spec.maxDistanceKm} km past your max distance`);
+  if (t.distanceKm < spec.minDistanceKm) r.push(`${Math.round(spec.minDistanceKm - t.distanceKm)} km closer than your min distance`);
+  return r;
+}
+
 export function runSearch(spec: SearchSpec, input: SearchInput = {}): SearchResult {
+  const main = searchCore(spec, input);
+  if (!main.windows.length || !spec.origins.length) return main;
+  const loose = searchCore(relaxSpec(spec), input);
+  const have = new Set(main.trips.map((t) => t.dest.id));
+  const near: Trip[] = [];
+  for (const t of loose.trips) {
+    if (have.has(t.dest.id)) continue;
+    const why = nearReasons(t, spec);
+    if (!why.length) continue;
+    t.nearMiss = why;
+    near.push(t);
+  }
+  main.near = near.slice(0, 30);
+  return main;
+}
+
+function searchCore(spec: SearchSpec, input: SearchInput): SearchResult {
   const today = input.today ?? fmtDay(new Date());
   const windows = tripWindows(spec.when, today);
-  const empty = (note: string): SearchResult => ({ trips: [], considered: 0, windows, live: { used: false, calls: 0, cached: 0, errors: [] }, notes: [note] });
+  const empty = (note: string): SearchResult => ({ trips: [], near: [], considered: 0, windows, live: { used: false, calls: 0, cached: 0, errors: [] }, notes: [note] });
   if (!windows.length) return empty('No dates fit those settings. Loosen the days or blackouts.');
   if (!spec.origins.length) return empty('Add a home base to start from.');
   const firstMonth = monthOf(windows[0].depart);
@@ -224,8 +272,16 @@ export function runSearch(spec: SearchSpec, input: SearchInput = {}): SearchResu
           key: `${dest.id}|${w.depart}`, dest, originLabel: o.label, originLat: o.lat, originLon: o.lon,
           distanceKm: Math.round(km), window: w, options, best: options[0], hoursThere: 0, stayCost: 0, total: 0,
           interest: 0, score: 0, reasons: [], flags: [], alts,
+          costs: { beds: 0, food: 0, local: 0, sights: 0, nights: 0, days: 0 }, flightHint: null,
         };
         if (!settleTrip(t, spec)) continue;
+        if (spec.modes.flight) {
+          t.flightHint = flightHint(
+            { km, fromCc: o.cc, toCc: dest.cc, fromAir: fromAirs[0], toAir: dest.airports[0], fromName: o.label, toName: dest.name,
+              fromLat: o.lat, fromLon: o.lon, toLat: dest.lat, toLon: dest.lon, depart: w.depart, ret: w.ret },
+            t.options.find((x) => x.mode === 'flight' && x.source === 'live'),
+          );
+        }
 
         const prev = alts.find((a) => a.window.depart === w.depart);
         if (!prev || t.total < prev.total) {
@@ -248,6 +304,7 @@ export function runSearch(spec: SearchSpec, input: SearchInput = {}): SearchResu
   if (extra.size) notes.push(`${extra.size} extra place${extra.size > 1 ? 's' : ''} turned up in live flight fares.`);
   return {
     trips: trips.slice(0, spec.limit),
+    near: [],
     considered: pool.length,
     windows,
     live: { used: (input.flights?.length ?? 0) > 0, calls: 0, cached: 0, errors: [] },

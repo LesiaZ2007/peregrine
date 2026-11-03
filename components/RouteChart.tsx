@@ -25,13 +25,14 @@ function loadAtlas() {
 interface Props {
   origins: HomeBase[];
   trips: Trip[];
+  near?: Trip[];
   hot: string | null;
   setHot: (k: string | null) => void;
   open: (t: Trip) => void;
   title: string;
 }
 
-export default function RouteChart({ origins, trips, hot, setHot, open, title }: Props) {
+export default function RouteChart({ origins, trips, near = [], hot, setHot, open, title }: Props) {
   const [atlas, setAtlas] = useState<Awaited<ReturnType<typeof loadAtlas>> | null>(null);
   useEffect(() => {
     let live = true;
@@ -44,6 +45,7 @@ export default function RouteChart({ origins, trips, hot, setHot, open, title }:
     const pts: [number, number][] = [
       ...origins.map((o) => [o.lon, o.lat] as [number, number]),
       ...shown.map((t) => [t.dest.lon, t.dest.lat] as [number, number]),
+      ...near.slice(0, 25).map((t) => [t.dest.lon, t.dest.lat] as [number, number]),
     ];
     if (!pts.length) pts.push([10, 48], [-5, 40], [25, 58]);
     if (pts.length === 1) pts.push([pts[0][0] + 4, pts[0][1] + 3], [pts[0][0] - 4, pts[0][1] - 3]);
@@ -64,7 +66,7 @@ export default function RouteChart({ origins, trips, hot, setHot, open, title }:
       extent: { lat0, lat1 },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origins, trips]);
+  }, [origins, trips, near]);
 
   const grat = useMemo(() => path(geoGraticule10()) ?? '', [path]);
   const modesShown = [...new Set(shown.map((t) => t.best.mode))];
@@ -97,6 +99,25 @@ export default function RouteChart({ origins, trips, hot, setHot, open, title }:
           {atlas && <path className="land" d={path(atlas.land as Feature) ?? ''} />}
           {atlas && <path className="borders" d={path(atlas.borders) ?? ''} />}
           <path className="graticule" d={grat} />
+
+          {/* near misses: greyed, behind everything */}
+          {near.slice(0, 25).map((t) => {
+            const d = path({ type: 'LineString', coordinates: [[t.originLon, t.originLat], [t.dest.lon, t.dest.lat]] }) ?? '';
+            const [x, y] = project(t.dest.lon, t.dest.lat);
+            const isHot = hot === t.key;
+            return (
+              <g key={`n-${t.key}`} opacity={isHot ? 0.95 : 0.4} style={{ cursor: 'pointer' }}
+                onMouseEnter={() => setHot(t.key)} onMouseLeave={() => setHot(null)} onClick={() => open(t)}>
+                <path d={d} fill="none" stroke="var(--rule-2)" strokeWidth={isHot ? 2 : 1.2} strokeDasharray="3 4" />
+                <circle cx={x} cy={y} r={isHot ? 6.5 : 4.5} fill="var(--paper-3)" stroke="var(--rule-2)" strokeWidth={1.6} />
+                {isHot && (
+                  <text x={x + 10} y={y + 4} style={{ font: '600 13px var(--f-sans)', fill: 'var(--ink-2)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
+                    {t.dest.name} · just outside
+                  </text>
+                )}
+              </g>
+            );
+          })}
 
           {/* routes, drawn back to front so the best ones sit on top */}
           {[...shown].reverse().map((t) => {

@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 import { shortDay } from '@/lib/dates';
 import { fromUsd, sign, toUsd } from '@/lib/money';
-import type { Currency, Mode, Region, SearchSpec, SortKey, StayStyle, Tag, When } from '@/lib/types';
+import type { Currency, FoodStyle, Mode, Region, SearchSpec, SortKey, StayStyle, Tag, When } from '@/lib/types';
 import { MODES } from '@/lib/types';
 import HomeBasePicker from './HomeBasePicker';
 import { MODE_HINT, MODE_LABEL, RouteSample } from './icons';
@@ -310,6 +310,11 @@ export default function PlanForm({ spec, set, catalog, countries, quota, hasLive
           <span className="label">Where you sleep</span>
           <Seg<StayStyle> label="Stay" value={spec.stayStyle} onChange={(stayStyle) => set({ stayStyle })} options={[['free', 'Friends'], ['hostel', 'Hostel'], ['budget', 'Budget room'], ['mid', 'Hotel']]} />
         </div>
+        <div className="field">
+          <span className="label">How you eat</span>
+          <Seg<FoodStyle> label="Food" value={spec.foodStyle} onChange={(foodStyle) => set({ foodStyle })} options={[['self', 'Self-cater'], ['cheap', 'Cheap eats'], ['restaurants', 'Restaurants']]} />
+        </div>
+        <Tick checked={spec.includeSights} onChange={(includeSights) => set({ includeSights })} hint="a museum, tour or entry fee each day">Count sights & activities</Tick>
         <Tick checked={spec.under26} onChange={(under26) => set({ under26 })} hint="youth fares on most European railways">Under 26</Tick>
         <Tick checked={spec.railcard} onChange={(railcard) => set({ railcard })} hint="Railcard, BahnCard, Carta Freccia, etc.">I have a rail discount card</Tick>
         <Tick checked={spec.checkedBag} onChange={(checkedBag) => set({ checkedBag })} hint="otherwise flights assume a free under-seat bag">Checked bag on flights</Tick>

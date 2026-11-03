@@ -1,31 +1,41 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { FOOD_LABEL, rates, STAY_LABEL } from '@/lib/costs';
 import { bearingName, fmtCoord } from '@/lib/geo';
 import { duration, money } from '@/lib/money';
-import { linksFor } from '@/lib/links';
-import { STAY_FACTOR } from '@/lib/search';
 import type { Currency, SearchSpec, Trip } from '@/lib/types';
 import { LineBadge, MODE_LABEL } from './icons';
+import { Star } from './TripSlip';
 
 interface Offer { price: number; airline: string; stops: number; durationMin: number; departTime: string; arriveTime: string; from: string; to: string }
 interface BusRide { dep: string; arr: string; priceEur: number; transfers: number; durationMin: number }
 interface BusResult { fare: { priceUsd: number; note?: string; link: string } | null; out: BusRide[]; back: BusRide[] }
 interface Journey { start: string; end: string; durationMin: number; transfers: number; legs: { mode: string; from: string; to: string; start: string; end: string; line?: string; agency?: string }[] }
+type Load<T> = { state: 'idle' | 'loading' | 'done' | 'error'; data?: T; msg?: string };
 
 const time = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso.slice(11, 16) : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function TripSheet({ trip: t, spec, close, saved, onSave, been, onBeen, wished, onWish, onHide }: {
+async function getJson<T>(url: string, fallback: string): Promise<T> {
+  const r = await fetch(url);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error === 'no_key' ? 'Google fares need a free SerpApi key on the server.' : j.message ?? fallback);
+  return j as T;
+}
+
+export default function TripSheet({ trip: t, spec, close, starred, onStar, compared, onCompare, been, onBeen, wished, onWish, onHide }: {
   trip: Trip; spec: SearchSpec; close: () => void;
-  saved: boolean; onSave: () => void; been: boolean; onBeen: () => void; wished: boolean; onWish: () => void; onHide: () => void;
+  starred: boolean; onStar: () => void; compared: boolean; onCompare: () => void;
+  been: boolean; onBeen: () => void; wished: boolean; onWish: () => void; onHide?: () => void;
 }) {
   const cur: Currency = spec.currency;
   const ref = useRef<HTMLDivElement>(null);
-  const [offers, setOffers] = useState<{ state: 'idle' | 'loading' | 'done' | 'error'; data?: Offer[]; msg?: string }>({ state: 'idle' });
-  const [bus, setBus] = useState<{ state: 'idle' | 'loading' | 'done' | 'error'; data?: BusResult; msg?: string }>({ state: 'idle' });
-  const [ground, setGround] = useState<{ state: 'idle' | 'loading' | 'done' | 'error'; data?: Journey[]; msg?: string }>({ state: 'idle' });
+  const [offers, setOffers] = useState<Load<Offer[]>>({ state: 'idle' });
+  const [bus, setBus] = useState<Load<BusResult>>({ state: 'idle' });
+  const [ground, setGround] = useState<Load<Journey[]>>({ state: 'idle' });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
@@ -34,61 +44,34 @@ export default function TripSheet({ trip: t, spec, close, saved, onSave, been, o
     return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
-  const flight = t.options.find((o) => o.mode === 'flight');
   const fromAir = spec.origins.find((o) => o.label === t.originLabel)?.airports[0];
   const toAir = t.dest.airports[0];
+  const hint = t.flightHint;
   const groundOpt = t.options.find((o) => o.mode === 'train' || o.mode === 'bus' || o.mode === 'ferry');
-  const flightLinks = linksFor('flight', {
-    fromName: t.originLabel, toName: t.dest.name, fromLat: t.originLat, fromLon: t.originLon, toLat: t.dest.lat, toLon: t.dest.lon,
-    fromAir, toAir, depart: t.window.depart, ret: t.window.ret,
-  });
+  const r = rates(t.dest, spec);
+  const c = t.costs;
 
-  async function checkBus() {
-    setBus({ state: 'loading' });
+  async function run<T>(set: (l: Load<T>) => void, url: string, fallback: string, pick: (j: unknown) => T) {
+    set({ state: 'loading' });
     try {
-      const q = new URLSearchParams({
-        fromName: t.originLabel, fromLat: String(t.originLat), fromLon: String(t.originLon),
-        toName: t.dest.name, toLat: String(t.dest.lat), toLon: String(t.dest.lon),
-        depart: t.window.depart, ret: t.window.ret, leaveAfter: spec.when.leaveAfter, backBy: spec.when.backBy,
-        overnight: spec.overnight ? '1' : '0',
-      });
-      const r = await fetch(`/api/live/bus?${q}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.message ?? 'FlixBus lookup failed');
-      setBus({ state: 'done', data: j });
+      set({ state: 'done', data: pick(await getJson(url, fallback)) });
     } catch (e) {
-      setBus({ state: 'error', msg: (e as Error).message });
+      set({ state: 'error', msg: (e as Error).message });
     }
   }
-
-  async function checkFlights() {
-    if (!fromAir || !toAir) return;
-    setOffers({ state: 'loading' });
-    try {
-      const r = await fetch(`/api/live/flights?from=${fromAir}&to=${toAir}&depart=${t.window.depart}&ret=${t.window.ret}&adults=${spec.travellers}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error === 'no_key' ? 'Live fares need a SerpApi key on the server.' : j.message ?? 'Search failed');
-      setOffers({ state: 'done', data: j.offers });
-    } catch (e) {
-      setOffers({ state: 'error', msg: (e as Error).message });
-    }
-  }
-  async function checkGround() {
-    setGround({ state: 'loading' });
-    try {
-      const when = `${t.window.depart}T${spec.when.leaveAfter || '08:00'}:00`;
-      const q = new URLSearchParams({ fromLat: String(t.originLat), fromLon: String(t.originLon), toLat: String(t.dest.lat), toLon: String(t.dest.lon), time: when });
-      const r = await fetch(`/api/live/ground?${q}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.message ?? 'Timetable lookup failed');
-      setGround({ state: 'done', data: j.journeys });
-    } catch (e) {
-      setGround({ state: 'error', msg: (e as Error).message });
-    }
-  }
-
-  const nightsPaid = Math.max(0, t.window.nights - (t.best.overnight ? 1 : 0));
-  const people = spec.travellers;
+  const checkFlights = () =>
+    run(setOffers, `/api/live/flights?from=${fromAir}&to=${toAir}&depart=${t.window.depart}&ret=${t.window.ret}&adults=${spec.travellers}`, 'Search failed', (j) => (j as { offers: Offer[] }).offers);
+  const checkBus = () => {
+    const q = new URLSearchParams({
+      fromName: t.originLabel, fromLat: String(t.originLat), fromLon: String(t.originLon), toName: t.dest.name, toLat: String(t.dest.lat), toLon: String(t.dest.lon),
+      depart: t.window.depart, ret: t.window.ret, leaveAfter: spec.when.leaveAfter, backBy: spec.when.backBy, overnight: spec.overnight ? '1' : '0',
+    });
+    return run(setBus, `/api/live/bus?${q}`, 'FlixBus lookup failed', (j) => j as BusResult);
+  };
+  const checkGround = () => {
+    const q = new URLSearchParams({ fromLat: String(t.originLat), fromLon: String(t.originLon), toLat: String(t.dest.lat), toLon: String(t.dest.lon), time: `${t.window.depart}T${spec.when.leaveAfter || '08:00'}:00` });
+    return run(setGround, `/api/live/ground?${q}`, 'Timetable lookup failed', (j) => (j as { journeys: Journey[] }).journeys);
+  };
 
   return (
     <>
@@ -98,9 +81,13 @@ export default function TripSheet({ trip: t, spec, close, saved, onSave, been, o
           // eslint-disable-next-line @next/next/no-img-element
           <img className="sheet-thumb" src={t.dest.thumb} alt="" />
         )}
+        {t.nearMiss?.length ? <div className="near-banner">Just outside your settings: {t.nearMiss.join(' · ')}</div> : null}
         <div className="sheet-head">
           <button className="btn small close" onClick={close}>Close</button>
-          <h2>{t.dest.name}</h2>
+          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            <Star on={starred} onClick={onStar} label={t.dest.name} />
+            <h2>{t.dest.name}</h2>
+          </div>
           <div className="sub">
             {t.dest.country.toUpperCase()} · {fmtCoord(t.dest.lat, t.dest.lon)} · {t.distanceKm.toLocaleString('en-GB')} KM {bearingName(t.originLat, t.originLon, t.dest.lat, t.dest.lon)} OF {t.originLabel.toUpperCase()}
           </div>
@@ -111,11 +98,13 @@ export default function TripSheet({ trip: t, spec, close, saved, onSave, been, o
             </div>
           )}
           <div className="row" style={{ marginTop: 14 }}>
-            <button className={`btn small ${saved ? 'primary' : ''}`} onClick={onSave}>{saved ? 'Saved' : 'Save trip'}</button>
+            <button className={`btn small ${starred ? 'primary' : ''}`} onClick={onStar}>{starred ? '★ Starred' : '☆ Star'}</button>
+            <button className={`btn small ${compared ? 'primary' : ''}`} onClick={onCompare}>{compared ? 'In compare' : 'Compare'}</button>
             <button className={`btn small ${wished ? 'primary' : ''}`} onClick={onWish}>{wished ? 'On wishlist' : 'Wishlist'}</button>
             <button className={`btn small ${been ? 'primary' : ''}`} onClick={onBeen}>{been ? 'Been there' : 'I’ve been'}</button>
-            <button className="btn small ghost" onClick={onHide}>Hide place</button>
+            {onHide && <button className="btn small ghost" onClick={onHide}>Hide place</button>}
           </div>
+          {starred && <p className="muted" style={{ fontSize: '0.8rem', margin: '8px 0 0' }}>Starred. Put it on a weekend in <Link href="/trips">Trips</Link>.</p>}
         </div>
 
         <section className="sheet-sec">
@@ -141,27 +130,46 @@ export default function TripSheet({ trip: t, spec, close, saved, onSave, been, o
                     <div className="muted">{o.transfers ? `${o.transfers} change${o.transfers > 1 ? 's' : ''}` : 'direct'}</div>
                   </td>
                   <td className="num">
-                    {o.source === 'live' ? money(o.price, cur) : o.priceHigh > o.price ? `${money(o.price, cur)}–${money(o.priceHigh, cur).replace(/^\D/, '')}` : money(o.price, cur)}
+                    {o.source === 'live' || o.priceHigh <= o.price ? money(o.price, cur) : `${money(o.price, cur)}–${money(o.priceHigh, cur).replace(/^\D/, '')}`}
                     <div><span className={`stamp ${o.source === 'live' ? 'live' : 'est'}`}>{o.source === 'live' ? 'live' : 'est.'}</span></div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {!flight && spec.modes.flight && t.distanceKm > 250 && toAir && (
-            <p className="muted" style={{ fontSize: '0.82rem', margin: 0 }}>
-              No real flight fare turned up for these dates, so flights aren’t listed.{' '}
-              {flightLinks.length > 0 && <>Look yourself: {flightLinks.map((l, i) => <span key={l.label}>{i ? ' · ' : ''}<a href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a></span>)}</>}
-            </p>
-          )}
         </section>
+
+        {hint && (
+          <section className="sheet-sec">
+            <h3>Cheaper flights?</h3>
+            <div className="guide">
+              {hint.noRealFare ? (
+                <span>No real fare came back for these dates (we only see Ryanair{spec.live ? ' and Google’s top results' : ''}). Other airlines may fly it.</span>
+              ) : hint.cheaperLikely ? (
+                <span>The fare listed is above what this distance usually costs on a budget airline. Worth shopping around.</span>
+              ) : (
+                <span>The fare listed is already in the cheap range for this distance. Other airlines could still beat it.</span>
+              )}
+              <span>
+                Typical cheap return at {t.distanceKm.toLocaleString('en-GB')} km, booked a few weeks out: <b className="mono">{money(hint.low, cur)}–{money(hint.high, cur).replace(/^\D/, '')}</b> <span className="stamp est">guide</span>
+              </span>
+              {hint.airlines.length > 0 && <span className="muted">Budget airlines to check around here: {hint.airlines.join(', ')}.</span>}
+              <span className="row" style={{ gap: 12 }}>
+                {hint.links.map((l) => <a key={l.label} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}
+              </span>
+              <span className="muted" style={{ fontSize: '0.78rem' }}>
+                Tips: flexible dates (±1 day) and nearby airports often save the most. Google Flights’ date grid and Skyscanner’s “whole month” view show it fast.
+              </span>
+            </div>
+          </section>
+        )}
 
         <section className="sheet-sec">
           <h3>Check it for real</h3>
           <div className="row">
             {fromAir && toAir && fromAir !== toAir && (
               <button className="btn small" onClick={checkFlights} disabled={offers.state === 'loading'}>
-                {offers.state === 'loading' ? 'Asking Google Flights…' : `Flights ${fromAir} → ${toAir}`}
+                {offers.state === 'loading' ? 'Asking Google Flights…' : `All airlines ${fromAir} → ${toAir}`}
               </button>
             )}
             {t.options.some((o) => o.mode === 'bus') && (
@@ -200,19 +208,19 @@ export default function TripSheet({ trip: t, spec, close, saved, onSave, been, o
               ) : (
                 <p className="muted" style={{ margin: '0 0 6px' }}>No FlixBus round trip fits your hours on these dates.</p>
               )}
-              {[['Out', bus.data.out], ['Back', bus.data.back]].map(([label, list]) => (
-                (list as BusRide[]).length > 0 && (
-                  <div key={label as string} style={{ marginBottom: 6 }}>
-                    <span className="caps muted">{label as string}</span>
-                    {(list as BusRide[]).slice(0, 6).map((r, i) => (
+              {([['Out', bus.data.out], ['Back', bus.data.back]] as const).map(([label, list]) =>
+                list.length > 0 && (
+                  <div key={label} style={{ marginBottom: 6 }}>
+                    <span className="caps muted">{label}</span>
+                    {list.slice(0, 6).map((ride, i) => (
                       <div className="offer" key={i}>
-                        <span className="mono">{r.dep.slice(11, 16)} → {r.arr.slice(11, 16)} · {duration(r.durationMin)}{r.transfers ? ` · ${r.transfers} chg` : ''}</span>
-                        <b className="mono">€{r.priceEur.toFixed(2)}</b>
+                        <span className="mono">{ride.dep.slice(11, 16)} → {ride.arr.slice(11, 16)} · {duration(ride.durationMin)}{ride.transfers ? ` · ${ride.transfers} chg` : ''}</span>
+                        <b className="mono">€{ride.priceEur.toFixed(2)}</b>
                       </div>
                     ))}
                   </div>
-                )
-              ))}
+                ),
+              )}
             </div>
           )}
           {ground.state === 'error' && <p className="muted">{ground.msg}</p>}
@@ -253,23 +261,26 @@ export default function TripSheet({ trip: t, spec, close, saved, onSave, been, o
         )}
 
         <section className="sheet-sec">
-          <h3>Ledger</h3>
+          <h3>What it costs</h3>
           <table className="ledger">
             <tbody>
-              <tr><td>{MODE_LABEL[t.best.mode]}, return</td><td className="num">{money(t.best.price, cur)}</td></tr>
+              <tr><td>{MODE_LABEL[t.best.mode]}, return <span className={`stamp ${t.best.source === 'live' ? 'live' : 'est'}`}>{t.best.source === 'live' ? 'live' : 'est.'}</span></td><td className="num">{money(t.best.price, cur)}</td></tr>
               <tr>
-                <td>
-                  Stay & spending, {nightsPaid || 'no'} night{nightsPaid === 1 ? '' : 's'}
-                  <div className="muted" style={{ fontSize: '0.78rem' }}>about {money(t.dest.daily * STAY_FACTOR[spec.stayStyle], cur)} a day at your stay level</div>
-                </td>
-                <td className="num">{money(t.stayCost, cur)}</td>
+                <td>Beds · {c.nights} night{c.nights === 1 ? '' : 's'}, {STAY_LABEL[spec.stayStyle]}<div className="muted" style={{ fontSize: '0.78rem' }}>{spec.stayStyle === 'free' ? 'staying with friends' : `about ${money(r.bed, cur)} a night`}{t.best.overnight ? ' · one night on the move' : ''}</div></td>
+                <td className="num">{money(c.beds, cur)}</td>
               </tr>
+              <tr>
+                <td>Food · {c.days} day{c.days === 1 ? '' : 's'}, {FOOD_LABEL[spec.foodStyle]}<div className="muted" style={{ fontSize: '0.78rem' }}>about {money(r.food, cur)} a day</div></td>
+                <td className="num">{money(c.food, cur)}</td>
+              </tr>
+              <tr><td>Getting around<div className="muted" style={{ fontSize: '0.78rem' }}>metro, buses, about {money(r.local, cur)} a day</div></td><td className="num">{money(c.local, cur)}</td></tr>
+              {spec.includeSights && <tr><td>Sights & activities<div className="muted" style={{ fontSize: '0.78rem' }}>one paid thing a day, about {money(r.sights, cur)}</div></td><td className="num">{money(c.sights, cur)}</td></tr>}
               <tr className="total"><td>Per person</td><td className="num">{money(t.total, cur)}</td></tr>
-              {people > 1 && <tr><td>For {people} of you</td><td className="num">{money(t.total * people, cur)}</td></tr>}
+              {spec.travellers > 1 && <tr><td>For {spec.travellers} of you</td><td className="num">{money(t.total * spec.travellers, cur)}</td></tr>}
             </tbody>
           </table>
           <p className="muted" style={{ fontSize: '0.78rem', margin: 0 }}>
-            Prices stamped “live” are real fares (Ryanair, Google Flights, FlixBus). Prices stamped “est.” are estimates from distance, region and how far ahead you book; follow the links for the real price. Stay costs are always estimates.
+            “live” prices are real fares (Ryanair, Google Flights, FlixBus). Everything stamped “est.” and every stay line is an estimate built from local price levels. Change where you sleep and how you eat in 05 Money.
           </p>
         </section>
       </aside>

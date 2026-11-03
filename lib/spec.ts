@@ -48,6 +48,8 @@ export const DEFAULT_SPEC: SearchSpec = {
   budgetTransport: null,
   budgetTotal: null,
   stayStyle: 'hostel',
+  foodStyle: 'cheap',
+  includeSights: true,
   under26: true,
   railcard: false,
   checkedBag: false,

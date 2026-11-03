@@ -48,6 +48,7 @@ export interface HomeBase {
 
 export type Currency = 'USD' | 'EUR' | 'GBP';
 export type StayStyle = 'free' | 'hostel' | 'budget' | 'mid';
+export type FoodStyle = 'self' | 'cheap' | 'restaurants';
 export type SortKey = 'score' | 'price' | 'time' | 'hoursThere' | 'distance' | 'total';
 
 export interface When {
@@ -113,6 +114,8 @@ export interface SearchSpec {
   budgetTransport: number | null;
   budgetTotal: number | null;
   stayStyle: StayStyle;
+  foodStyle: FoodStyle;
+  includeSights: boolean;
   under26: boolean;
   railcard: boolean;
   checkedBag: boolean;
@@ -172,8 +175,36 @@ export interface Trip {
   score: number;
   reasons: string[];
   flags: string[];
+  /** itemised cost of being there, USD per person */
+  costs: Costs;
+  /** guidance on whether another airline could beat the listed fare */
+  flightHint: FlightHint | null;
+  /** set when the trip is just outside your settings: why */
+  nearMiss?: string[];
   /** best price for each date window tried, for comparing dates */
   alts: { window: TripWindow; mode: Mode; price: number; total: number; source: Option['source'] }[];
+}
+
+export interface Costs {
+  beds: number;
+  food: number;
+  local: number;
+  sights: number;
+  nights: number;
+  days: number;
+}
+
+export interface FlightHint {
+  /** estimated typical low round-trip fare range on this distance, USD — guidance only */
+  low: number;
+  high: number;
+  /** budget airlines that commonly fly from your country / to theirs */
+  airlines: string[];
+  /** the listed real fare is above the typical low range, so shop around */
+  cheaperLikely: boolean;
+  /** true when no real fare was found at all */
+  noRealFare: boolean;
+  links: Link[];
 }
 
 /** A real round-trip flight fare from a live source. */
@@ -215,6 +246,8 @@ export interface GroundFare {
 
 export interface SearchResult {
   trips: Trip[];
+  /** places just outside your settings, with reasons */
+  near: Trip[];
   considered: number;
   windows: TripWindow[];
   live: { used: boolean; calls: number; cached: number; errors: string[] };

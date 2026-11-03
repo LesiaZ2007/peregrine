@@ -1,9 +1,6 @@
-import SavedView from '@/components/SavedView';
-import { DESTINATIONS } from '@/lib/data/destinations';
+import { redirect } from 'next/navigation';
 
-export const metadata = { title: 'Saved · Peregrine' };
-
+// "Saved" became "Trips" (stars, season plan, export).
 export default function SavedPage() {
-  const names = Object.fromEntries(DESTINATIONS.map((d) => [d.id, `${d.name}, ${d.country}`]));
-  return <SavedView names={names} />;
+  redirect('/trips');
 }

@@ -2,6 +2,7 @@ import '@fontsource-variable/archivo/standard.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import './globals.css';
+import './compare.css';
 import type { Metadata, Viewport } from 'next';
 import TopBar from '@/components/TopBar';
 

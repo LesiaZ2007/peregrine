@@ -1,11 +1,16 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyPatch, decodeSpec, DEFAULT_SPEC, encodeSpec, normalizeSpec, PRESETS } from '@/lib/spec';
-import { EMPTY_IDS, EMPTY_PRESETS, EMPTY_SAVED, K, useStored, type SavedPreset, type SavedTrip } from '@/lib/store';
+import Link from 'next/link';
+import { chatContext } from '@/lib/brief';
+import { toUsd } from '@/lib/money';
+import { EMPTY_IDS, EMPTY_PRESETS, K, useStored, type SavedPreset } from '@/lib/store';
+import { useTripActions } from '@/lib/useTripActions';
 import type { SearchResult, SearchSpec, Trip } from '@/lib/types';
 import PlanForm, { type CatalogEntry, type CountryEntry } from './PlanForm';
 import RouteChart from './RouteChart';
 import TripSheet from './TripSheet';
+import ChatDock from './ChatDock';
 import TripSlip from './TripSlip';
 
 type Res = SearchResult & { quota: { left: number; total: number } | null };
@@ -14,9 +19,9 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
   const [stored, setStored] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
   const [visited, setVisited] = useStored<string[]>(K.visited, EMPTY_IDS);
   const [wishlist, setWishlist] = useStored<string[]>(K.wishlist, EMPTY_IDS);
-  const [saved, setSaved] = useStored<SavedTrip[]>(K.saved, EMPTY_SAVED);
   const [presets, setPresets] = useStored<SavedPreset[]>(K.presets, EMPTY_PRESETS);
   const spec = useMemo(() => normalizeSpec(stored), [stored]);
+  const acts = useTripActions(spec.currency);
 
   const [res, setRes] = useState<Res | null>(null);
   const [ranFor, setRanFor] = useState<string>('');
@@ -62,6 +67,8 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
 
   const stale = res && ranFor !== JSON.stringify(spec);
   const trips = res?.trips ?? [];
+  const near = res?.near ?? [];
+  const [showNear, setShowNear] = useState(false);
   const cur = spec.currency;
 
   function share() {
@@ -112,7 +119,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
       </aside>
 
       <main className="results">
-        <RouteChart origins={spec.origins} trips={trips} hot={hot} setHot={setHot} open={setOpen} title={title} />
+        <RouteChart origins={spec.origins} trips={trips} near={near} hot={hot} setHot={setHot} open={setOpen} title={title} />
         {loading && <div className="loading-bar" aria-label="Searching" />}
 
         {!spec.origins.length && (
@@ -149,9 +156,27 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
             )}
             <div className="slips">
               {trips.map((t, i) => (
-                <TripSlip key={t.key} trip={t} rank={i + 1} cur={cur} hot={hot === t.key} setHot={setHot} open={() => setOpen(t)} />
+                <TripSlip key={t.key} trip={t} rank={i + 1} cur={cur} hot={hot === t.key} setHot={setHot} open={() => setOpen(t)}
+                  starred={acts.isStarred(t)} onStar={() => acts.toggleStar(t)} compared={acts.inCompare(t)} onCompare={() => acts.toggleCompare(t)} />
               ))}
             </div>
+            {near.length > 0 && (
+              <>
+                <div className="near-head">
+                  <h3>Just outside your settings</h3>
+                  <span className="muted" style={{ fontSize: '0.85rem' }}>{near.length} place{near.length === 1 ? '' : 's'}, greyed on the map</span>
+                  <button className="btn small" onClick={() => setShowNear((v) => !v)}>{showNear ? 'Hide' : 'Show'}</button>
+                </div>
+                {showNear && (
+                  <div className="slips">
+                    {near.map((t, i) => (
+                      <TripSlip key={`n-${t.key}`} trip={t} rank={i + 1} cur={cur} hot={hot === t.key} setHot={setHot} open={() => setOpen(t)}
+                        starred={acts.isStarred(t)} onStar={() => acts.toggleStar(t)} compared={acts.inCompare(t)} onCompare={() => acts.toggleCompare(t)} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </>
         )}
       </main>
@@ -161,8 +186,10 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
           trip={open}
           spec={spec}
           close={() => setOpen(null)}
-          saved={saved.some((s) => s.key === open.key)}
-          onSave={() => setSaved((list) => (list.some((s) => s.key === open.key) ? list.filter((s) => s.key !== open.key) : [{ key: open.key, savedAt: new Date().toISOString(), trip: open, currency: cur }, ...list]))}
+          starred={acts.isStarred(open)}
+          onStar={() => acts.toggleStar(open)}
+          compared={acts.inCompare(open)}
+          onCompare={() => acts.toggleCompare(open)}
           been={visited.includes(open.dest.id)}
           onBeen={() => setVisited((v) => toggle(v, open.dest.id))}
           wished={wishlist.includes(open.dest.id)}
@@ -170,6 +197,20 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
           onHide={() => { set({ exclude: [...new Set([...spec.exclude, open.dest.id])] }); setOpen(null); }}
         />
       )}
+
+      {acts.compare.length > 0 && !open && (
+        <div className="cmp-tray" role="status">
+          <span>{acts.compare.length} to compare</span>
+          <Link className="btn small accent" href="/compare">Compare</Link>
+          <button className="btn small" onClick={() => acts.setCompare([])}>Clear</button>
+        </div>
+      )}
+
+      <ChatDock
+        context={() => chatContext({ spec, results: trips, near, starred: acts.starred.map((s) => s.trip), compare: acts.compare, page: 'planner' })}
+        prompts={['Which of my top results is the best value and why?', 'Compare the places in my compare list', 'Find me somewhere with a beach under 150 all in', 'What could I do this weekend without flying?']}
+        onApply={(raw) => { const patch = { ...raw }; for (const k of ['budgetTotal', 'budgetTransport'] as const) { const v = patch[k]; if (typeof v === 'number') patch[k] = Math.round(toUsd(v, spec.currency)); } const next = normalizeSpec({ ...spec, ...patch, when: { ...spec.when, ...(patch.when ?? {}) }, modes: { ...spec.modes, ...(patch.modes ?? {}) }, weights: { ...spec.weights, ...(patch.weights ?? {}) } }); setStored(next); run(next); }}
+      />
     </div>
   );
 }

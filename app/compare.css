@@ -1,0 +1,40 @@
+/* ── compare ──────────────────────────────────────── */
+.page.wide { max-width: 1400px; }
+.cmp-scroll { overflow-x: auto; border: 1px solid var(--ink); background: var(--paper-2); }
+.cmp-table { border-collapse: collapse; width: 100%; min-width: calc(180px + var(--cols) * 230px); table-layout: fixed; }
+.cmp-table th, .cmp-table td { padding: 10px 12px; border-bottom: 1px solid var(--rule); border-left: 1px solid var(--rule); vertical-align: top; text-align: left; }
+.cmp-table thead th { border-bottom: 1px solid var(--ink); background: var(--paper); position: relative; }
+.cmp-table thead th[data-mode]::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--m); }
+.cmp-table tbody th { width: 180px; font-stretch: 75%; font-weight: 650; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.72rem; color: var(--ink-2); border-left: 0; }
+.cmp-table thead th:first-child { width: 180px; border-left: 0; }
+.cmp-head { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: start; }
+.cmp-head b { display: block; font-stretch: 115%; font-weight: 800; font-size: 1.1rem; line-height: 1.1; }
+.cmp-head span { display: block; font-size: 0.78rem; color: var(--ink-3); font-weight: 400; }
+.cmp-table td[data-best='true'] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.big-total { font-size: 1.2rem; }
+
+/* ── trips / season plan ──────────────────────────── */
+.season { width: 100%; border-collapse: collapse; }
+.season th { text-align: left; font-stretch: 75%; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.7rem; color: var(--ink-3); padding: 6px 8px; border-bottom: 1px solid var(--ink); }
+.season td { padding: 10px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.season td.num { font-family: var(--f-mono); text-align: right; white-space: nowrap; }
+.season tr[data-status='home'] td { color: var(--ink-3); }
+.season tr[data-status='trip'] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+.season tfoot td { border-top: 1px solid var(--ink); border-bottom: 0; font-weight: 700; }
+.season select { min-width: 180px; }
+.cands { display: grid; gap: 4px; margin-top: 8px; }
+.cand { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--rule); background: var(--paper-2); font-size: 0.85rem; }
+.cand .mono { font-size: 0.8rem; }
+.export-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chat-msg ul { margin: 2px 0 6px; padding-left: 18px; }
+.chat-msg li { margin: 2px 0; }
+.chat-msg hr { border: 0; border-top: 1px solid var(--rule); margin: 6px 0; }
+.linkish { border: 0; background: none; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule-2); text-underline-offset: 3px; }
+.linkish b { font-stretch: 105%; font-size: 1.05rem; }
+@media (max-width: 760px) {
+  .season thead { display: none; }
+  .season tr { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid var(--rule); padding: 8px 0; }
+  .season td { border: 0; padding: 4px 6px; }
+  .season td.span2 { grid-column: 1 / -1; }
+  .cand { grid-template-columns: 1fr auto; }
+}
