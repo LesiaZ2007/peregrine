@@ -8,7 +8,7 @@ import { EMPTY_IDS, EMPTY_PRESETS, K, useStored, type SavedPreset } from '@/lib/
 import { useTripActions } from '@/lib/useTripActions';
 import type { SearchResult, SearchSpec, SortKey, Trip } from '@/lib/types';
 import PlanForm, { type CatalogEntry, type CountryEntry } from './PlanForm';
-import RouteChart from './RouteChart';
+import RouteChart, { type ShapeLeg } from './RouteChart';
 import TripSheet from './TripSheet';
 import ChatDock from './ChatDock';
 import TripSlip from './TripSlip';
@@ -77,6 +77,24 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
   }, [res, spec.sort]);
   const near = res?.near ?? [];
   const [showNear, setShowNear] = useState(false);
+
+  // real track shapes for the leading ground journeys (drawn on the map once they arrive)
+  const [shapes, setShapes] = useState<Record<string, ShapeLeg[] | null>>({});
+  useEffect(() => {
+    const ground = (res?.trips ?? []).filter((t) => t.best.mode === 'train' || t.best.mode === 'bus' || t.best.mode === 'ferry').slice(0, 12);
+    if (!ground.length) return;
+    const ctrl = new AbortController();
+    const items = ground.map((t) => ({
+      key: t.key, from: [t.originLat, t.originLon], to: [t.dest.lat, t.dest.lon], time: `${t.window.depart}T${spec.when.leaveAfter || '09:00'}:00`,
+    }));
+    fetch('/api/shapes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items }), signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : { shapes: {} }))
+      .then((j: { shapes: Record<string, ShapeLeg[] | null> }) => setShapes((old) => ({ ...old, ...j.shapes })))
+      .catch(() => {});
+    return () => ctrl.abort();
+    // only when a new result set arrives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [res]);
   const cur = spec.currency;
 
   function share() {
@@ -127,7 +145,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
       </aside>
 
       <main className="results">
-        <RouteChart origins={spec.origins} trips={trips} near={near} hot={hot} setHot={setHot} open={setOpen} title={title} />
+        <RouteChart origins={spec.origins} trips={trips} near={near} shapes={shapes} hot={hot} setHot={setHot} open={setOpen} title={title} />
         {loading && <div className="loading-bar" aria-label="Searching" />}
 
         {!spec.origins.length && (

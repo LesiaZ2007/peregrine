@@ -89,7 +89,7 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
           <span className={`stamp ${b.source === 'live' ? 'live' : 'est'}`}>{b.source === 'live' ? (b.extraEst ? 'live+est.' : 'live') : 'est.'}</span>
         </span>
         <small title="travel + beds, food, getting around and sights">+ {money(t.stayCost, cur)} stay & food</small>
-        <small className="all-in">{money(t.total, cur)} all in</small>
+        <small className="all-in"><i>all in</i>{money(t.total, cur)}</small>
       </span>
       <span className="slip-acts">
         <Star on={starred} onClick={onStar} label={t.dest.name} />

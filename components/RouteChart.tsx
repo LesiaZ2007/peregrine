@@ -1,10 +1,11 @@
 'use client';
 import { geoConicConformal, geoGraticule10, geoPath } from 'd3-geo';
 import type { Feature, FeatureCollection, Geometry, MultiLineString } from 'geojson';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { feature, mesh } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
-import type { HomeBase, Trip } from '@/lib/types';
+import { haversine } from '@/lib/geo';
+import type { HomeBase, Mode, Trip } from '@/lib/types';
 import { MODE_LABEL, RouteSample, routeStyle } from './icons';
 
 const W = 1000;
@@ -22,23 +23,131 @@ function loadAtlas() {
   return atlasPromise;
 }
 
+export type ShapeLeg = { mode: 'train' | 'bus' | 'ferry' | 'local'; coords: [number, number][] };
+
 interface Props {
   origins: HomeBase[];
   trips: Trip[];
   near?: Trip[];
+  /** real track shapes for ground journeys, by trip key */
+  shapes?: Record<string, ShapeLeg[] | null>;
   hot: string | null;
   setHot: (k: string | null) => void;
   open: (t: Trip) => void;
   title: string;
 }
 
-export default function RouteChart({ origins, trips, near = [], hot, setHot, open, title }: Props) {
+type SegMode = Mode | 'local';
+interface Seg { mode: SegMode; d: string }
+
+/** One stretch of a journey in its mode's chart style. */
+function Stroke({ seg, hot }: { seg: Seg; hot: boolean }) {
+  if (seg.mode === 'local') return <path d={seg.d} fill="none" stroke="var(--ink-3)" strokeWidth={hot ? 1.6 : 1.1} strokeDasharray="1.5 3" />;
+  const s = routeStyle(seg.mode);
+  const c = `var(--m-${seg.mode})`;
+  return (
+    <>
+      {s.double ? (
+        <>
+          <path d={seg.d} fill="none" stroke={c} strokeWidth={hot ? 5 : 4} />
+          <path d={seg.d} fill="none" stroke="var(--land)" strokeWidth={hot ? 2.4 : 1.8} />
+        </>
+      ) : (
+        <path d={seg.d} fill="none" stroke={c} strokeWidth={s.width + (hot ? 1.2 : 0)} strokeDasharray={s.dash} strokeLinecap={seg.mode === 'ferry' ? 'round' : 'butt'} strokeLinejoin="round" />
+      )}
+      {s.ties && <path d={seg.d} fill="none" stroke={c} strokeWidth={6} strokeDasharray="1.2 7" />}
+    </>
+  );
+}
+
+export default function RouteChart({ origins, trips, near = [], shapes = {}, hot, setHot, open, title }: Props) {
   const [atlas, setAtlas] = useState<Awaited<ReturnType<typeof loadAtlas>> | null>(null);
   useEffect(() => {
     let live = true;
     loadAtlas().then((a) => live && setAtlas(a));
     return () => { live = false; };
   }, []);
+
+  // ── pan & zoom: a transform on the map group; strokes and markers keep their size ──
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [view, setView] = useState({ k: 1, x: 0, y: 0 });
+  const drag = useRef<{ id: number; sx: number; sy: number; vx: number; vy: number; moved: boolean } | null>(null);
+  const pinch = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStart = useRef<{ d: number; k: number; cx: number; cy: number; vx: number; vy: number } | null>(null);
+  const suppressClick = useRef(false);
+  const toSvg = useCallback((cx: number, cy: number) => {
+    const r = svgRef.current?.getBoundingClientRect();
+    if (!r) return { x: 0, y: 0 };
+    return { x: ((cx - r.left) / r.width) * W, y: ((cy - r.top) / r.height) * H };
+  }, []);
+  const zoomAt = useCallback((px: number, py: number, factor: number) => {
+    setView((v) => {
+      const k = Math.min(24, Math.max(1, v.k * factor));
+      const f = k / v.k;
+      const x = px - (px - v.x) * f;
+      const y = py - (py - v.y) * f;
+      return k === 1 ? { k: 1, x: 0, y: 0 } : { k, x, y };
+    });
+  }, []);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const p = toSvg(e.clientX, e.clientY);
+      zoomAt(p.x, p.y, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [toSvg, zoomAt]);
+  // a new set of results starts from the full view
+  const tripsKey = trips.map((t) => t.key).join(',');
+  const [lastKey, setLastKey] = useState(tripsKey);
+  if (lastKey !== tripsKey) { setLastKey(tripsKey); setView({ k: 1, x: 0, y: 0 }); }
+
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    pinch.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.current.size === 2) {
+      const [a, b] = [...pinch.current.values()];
+      const c = toSvg((a.x + b.x) / 2, (a.y + b.y) / 2);
+      pinchStart.current = { d: Math.hypot(a.x - b.x, a.y - b.y), k: view.k, cx: c.x, cy: c.y, vx: view.x, vy: view.y };
+      drag.current = null;
+      return;
+    }
+    drag.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false };
+    suppressClick.current = false;
+  };
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (pinch.current.has(e.pointerId)) pinch.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.current.size === 2 && pinchStart.current) {
+      const [a, b] = [...pinch.current.values()];
+      const ps = pinchStart.current;
+      const k = Math.min(24, Math.max(1, ps.k * (Math.hypot(a.x - b.x, a.y - b.y) / ps.d)));
+      const f = k / ps.k;
+      setView(k === 1 ? { k: 1, x: 0, y: 0 } : { k, x: ps.cx - (ps.cx - ps.vx) * f, y: ps.cy - (ps.cy - ps.vy) * f });
+      suppressClick.current = true;
+      return;
+    }
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const r = svgRef.current!.getBoundingClientRect();
+    const dx = ((e.clientX - d.sx) / r.width) * W;
+    const dy = ((e.clientY - d.sy) / r.height) * H;
+    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 4) {
+      d.moved = true;
+      svgRef.current?.setPointerCapture(e.pointerId);
+    }
+    if (d.moved && view.k > 1) setView((v) => ({ ...v, x: d.vx + dx, y: d.vy + dy }));
+  };
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    pinch.current.delete(e.pointerId);
+    if (pinch.current.size < 2) pinchStart.current = null;
+    if (drag.current?.moved) suppressClick.current = true;
+    drag.current = null;
+  };
+  /** marker transform that cancels the zoom so dots and labels stay the same size */
+  const pin = (x: number, y: number) => `translate(${x},${y}) scale(${1 / view.k})`;
+  const guard = (fn: () => void) => () => { if (suppressClick.current) { suppressClick.current = false; return; } fn(); };
 
   const shown = trips.slice(0, 40);
   const { path, project, extent } = useMemo(() => {
@@ -69,6 +178,43 @@ export default function RouteChart({ origins, trips, near = [], hot, setHot, ope
   }, [origins, trips, near]);
 
   const grat = useMemo(() => path(geoGraticule10()) ?? '', [path]);
+  const line = (coords: [number, number][]) => path({ type: 'LineString', coordinates: coords }) ?? '';
+  /** a flight as a gentle arc between two airports, bowing away from the equator like a great circle */
+  const arc = (a: [number, number], b: [number, number]) => {
+    const [ax, ay] = project(a[0], a[1]);
+    const [bx, by] = project(b[0], b[1]);
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const len = Math.hypot(bx - ax, by - ay);
+    let nx = -(by - ay) / (len || 1);
+    let ny = (bx - ax) / (len || 1);
+    if (ny > 0) { nx = -nx; ny = -ny; } // bow upwards (north on the chart)
+    const bend = Math.min(90, len * 0.18);
+    return `M${ax},${ay} Q${mx + nx * bend},${my + ny * bend} ${bx},${by}`;
+  };
+  /** How to draw one trip: real tracks if we have them, arcs for flights, straight lines otherwise. */
+  const segmentsFor = (t: Trip): Seg[] => {
+    const b = t.best;
+    const shape = shapes[t.key];
+    if (shape?.length && (b.mode === 'train' || b.mode === 'bus' || b.mode === 'ferry')) {
+      return shape.map((l) => ({ mode: l.mode as SegMode, d: line(l.coords) }));
+    }
+    if (b.mode === 'flight' && b.path && b.path.length >= 4) {
+      const pts = b.path;
+      const ground = (b.legs?.find((l) => l.mode === 'train' || l.mode === 'bus')?.mode ?? 'bus') as SegMode;
+      const lastIsFerry = b.legs?.[b.legs.length - 1]?.mode === 'ferry';
+      const segs: Seg[] = [];
+      for (let k = 0; k < pts.length - 1; k++) {
+        const a = pts[k];
+        const z = pts[k + 1];
+        if (k === 1) segs.push({ mode: 'flight', d: arc(a, z) });
+        else if (lastIsFerry && k === pts.length - 2) segs.push({ mode: 'ferry', d: line([a, z]) });
+        else segs.push({ mode: haversine(a[1], a[0], z[1], z[0]) > 25 ? ground : 'local', d: line([a, z]) });
+      }
+      return segs;
+    }
+    return [{ mode: b.mode, d: line([[t.originLon, t.originLat], [t.dest.lon, t.dest.lat]]) }];
+  };
   const modesShown = [...new Set(shown.map((t) => t.best.mode))];
   // label the best results, skipping any label that would collide with one already placed
   const labelled = useMemo(() => {
@@ -91,11 +237,24 @@ export default function RouteChart({ origins, trips, near = [], hot, setHot, ope
 
   return (
     <div className="chart-frame">
-      <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Map of routes to the results">
+      <svg
+        ref={svgRef}
+        className="chart"
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label="Map of routes to the results. Scroll to zoom, drag to move."
+        data-zoomed={view.k > 1}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onDoubleClick={(e) => { const p = toSvg(e.clientX, e.clientY); zoomAt(p.x, p.y, 2); }}
+      >
         <defs>
           <clipPath id="frame"><rect x="0" y="0" width={W} height={H} /></clipPath>
         </defs>
         <g clipPath="url(#frame)">
+        <g className="zoomable" transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
           {atlas && <path className="land" d={path(atlas.land as Feature) ?? ''} />}
           {atlas && <path className="borders" d={path(atlas.borders) ?? ''} />}
           <path className="graticule" d={grat} />
@@ -107,36 +266,27 @@ export default function RouteChart({ origins, trips, near = [], hot, setHot, ope
             const isHot = hot === t.key;
             return (
               <g key={`n-${t.key}`} opacity={isHot ? 0.95 : 0.4} style={{ cursor: 'pointer' }}
-                onMouseEnter={() => setHot(t.key)} onMouseLeave={() => setHot(null)} onClick={() => open(t)}>
+                onMouseEnter={() => setHot(t.key)} onMouseLeave={() => setHot(null)} onClick={guard(() => open(t))}>
                 <path d={d} fill="none" stroke="var(--rule-2)" strokeWidth={isHot ? 2 : 1.2} strokeDasharray="3 4" />
-                <circle cx={x} cy={y} r={isHot ? 6.5 : 4.5} fill="var(--paper-3)" stroke="var(--rule-2)" strokeWidth={1.6} />
-                {isHot && (
-                  <text x={x + 10} y={y + 4} style={{ font: '600 13px var(--f-sans)', fill: 'var(--ink-2)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
-                    {t.dest.name} · just outside
-                  </text>
-                )}
+                <g transform={pin(x, y)}>
+                  <circle r={isHot ? 6.5 : 4.5} fill="var(--paper-3)" stroke="var(--rule-2)" strokeWidth={1.6} />
+                  {isHot && (
+                    <text x={10} y={4} style={{ font: '600 13px var(--f-sans)', fill: 'var(--ink-2)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
+                      {t.dest.name} · just outside
+                    </text>
+                  )}
+                </g>
               </g>
             );
           })}
 
           {/* routes, drawn back to front so the best ones sit on top */}
           {[...shown].reverse().map((t) => {
-            const s = routeStyle(t.best.mode);
-            const d = path({ type: 'LineString', coordinates: [[t.originLon, t.originLat], [t.dest.lon, t.dest.lat]] }) ?? '';
-            const c = `var(--m-${t.best.mode})`;
             const isHot = hot === t.key;
-            const op = hot && !isHot ? 0.25 : 0.9;
+            const op = hot && !isHot ? 0.22 : 0.92;
             return (
               <g key={t.key} opacity={op} data-mode={t.best.mode}>
-                {s.double ? (
-                  <>
-                    <path d={d} fill="none" stroke={c} strokeWidth={isHot ? 5 : 4} />
-                    <path d={d} fill="none" stroke="var(--land)" strokeWidth={isHot ? 2.4 : 1.8} />
-                  </>
-                ) : (
-                  <path d={d} fill="none" stroke={c} strokeWidth={s.width + (isHot ? 1.2 : 0)} strokeDasharray={s.dash} strokeLinecap={t.best.mode === 'ferry' ? 'round' : 'butt'} />
-                )}
-                {s.ties && <path d={d} fill="none" stroke={c} strokeWidth={6} strokeDasharray="1.2 7" />}
+                {segmentsFor(t).map((seg, k) => <Stroke key={k} seg={seg} hot={isHot} />)}
               </g>
             );
           })}
@@ -145,15 +295,15 @@ export default function RouteChart({ origins, trips, near = [], hot, setHot, ope
           {shown.map((t, i) => {
             const [x, y] = project(t.dest.lon, t.dest.lat);
             const isHot = hot === t.key;
-            const showLabel = labelled.has(t.key) || isHot;
+            const showLabel = labelled.has(t.key) || isHot || view.k >= 2.5;
             return (
               <g
                 key={t.key}
-                transform={`translate(${x},${y})`}
+                transform={pin(x, y)}
                 style={{ cursor: 'pointer' }}
                 onMouseEnter={() => setHot(t.key)}
                 onMouseLeave={() => setHot(null)}
-                onClick={() => open(t)}
+                onClick={guard(() => open(t))}
               >
                 <circle r={isHot ? 8 : 5.5} fill="var(--paper-2)" stroke={`var(--m-${t.best.mode})`} strokeWidth={isHot ? 3 : 2.2} />
                 {showLabel && (
@@ -170,7 +320,7 @@ export default function RouteChart({ origins, trips, near = [], hot, setHot, ope
           {origins.map((o) => {
             const [x, y] = project(o.lon, o.lat);
             return (
-              <g key={o.label} transform={`translate(${x},${y})`}>
+              <g key={o.label} transform={pin(x, y)}>
                 <path d="M0 -11 9.5 -5.5 9.5 5.5 0 11 -9.5 5.5 -9.5 -5.5Z" fill="var(--ink)" stroke="var(--paper-2)" strokeWidth="2" />
                 <circle r="3" fill="var(--paper-2)" />
                 <text x={14} y={-8} style={{ font: '800 14px var(--f-sans)', fontStretch: '115%', textTransform: 'uppercase', letterSpacing: '0.06em', fill: 'var(--ink)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
@@ -179,6 +329,7 @@ export default function RouteChart({ origins, trips, near = [], hot, setHot, ope
               </g>
             );
           })}
+        </g>
         </g>
         {/* neatline ticks every 50 px, like a chart border */}
         <g className="ticks">
@@ -190,6 +341,11 @@ export default function RouteChart({ origins, trips, near = [], hot, setHot, ope
           ))}
         </g>
       </svg>
+      <div className="chart-zoom" role="group" aria-label="Map zoom">
+        <button type="button" onClick={() => zoomAt(W / 2, H / 2, 1.6)} aria-label="Zoom in">+</button>
+        <button type="button" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.6)} aria-label="Zoom out">−</button>
+        <button type="button" onClick={() => setView({ k: 1, x: 0, y: 0 })} aria-label="Reset map" disabled={view.k === 1}>⟲</button>
+      </div>
       <div className="chart-title">
         <b>{title}</b>
         <span>LAMBERT CONFORMAL · {Math.round(extent.lat0)}°–{Math.round(extent.lat1)}°</span>

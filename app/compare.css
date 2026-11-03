@@ -32,6 +32,18 @@
 .legs { margin: 6px 0 2px; padding: 0 0 0 4px; list-style: none; display: grid; gap: 3px; counter-reset: leg; }
 .legs li { font-size: 0.78rem; color: var(--ink-2); padding-left: 22px; position: relative; counter-increment: leg; }
 .legs li::before { content: counter(leg); position: absolute; left: 0; top: 1px; width: 15px; height: 15px; border-radius: 50%; background: var(--m); color: #fff; font: 600 0.62rem/15px var(--f-mono); text-align: center; }
+/* map pan & zoom */
+.chart-frame svg.chart { touch-action: none; cursor: grab; user-select: none; }
+.chart-frame svg.chart:active { cursor: grabbing; }
+.zoomable path, .zoomable line { vector-effect: non-scaling-stroke; }
+.chart-zoom { position: absolute; left: 12px; top: 12px; z-index: 2; display: grid; border: 1px solid var(--ink); background: var(--paper-2); }
+.chart-zoom button { width: 32px; height: 32px; border: 0; background: transparent; cursor: pointer; font: 600 1.05rem var(--f-mono); color: var(--ink); }
+.chart-zoom button + button { border-top: 1px solid var(--rule); }
+.chart-zoom button:hover { background: var(--paper-3); }
+.chart-zoom button:disabled { color: var(--rule-2); cursor: default; }
+/* all-in price in the list: smaller than the travel price, still easy to find */
+.slip .price .all-in { font-family: var(--f-mono); font-size: 0.9rem; color: var(--ink); font-weight: 600; }
+.slip .price .all-in i { font-style: normal; font-family: var(--f-sans); font-stretch: 75%; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.62rem; color: var(--ink-3); margin-right: 4px; }
 .sortbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sortbar .caps { margin-right: 4px; }
 
