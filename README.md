@@ -1,79 +1,58 @@
-# 🦅 Peregrine
+# Peregrine
 
-**Smart vacation flight planner** — find the cheapest flights with price predictions, multi-destination comparison, flexible date ranges with blackout days, and layover discovery.
+Find cheap, interesting trips from wherever you are — by train, coach, plane, ferry, shared car or your own car — with every setting yours to change. Built for people without fixed plans: students abroad hunting weekend escapes, anyone travelling on a budget.
 
-## Features
+## What it does
 
-- **Multi-origin search** — compare fares from BOS, NYC, and more in one search
-- **Multi-destination comparison** — up to 5 destinations side-by-side with similar-country suggestions  
-- **Flexible dates with blackout days** — set a travel window, block out camps/trips/events (shift-click for whole weeks)
-- **Round trip / One-way / Multi-city** — with roundtrip discount detection
-- **Price predictions** — heuristic scoring + Groq AI "buy now / wait / monitor" recommendations
-- **Price trend charts** — self-built price history accumulated over repeat visits
-- **Interesting layover explorer** — opt-in to embrace 20h+ layovers in Dubai, Amsterdam, Tokyo, etc.
-- **Watchlist & price alerts** — saved routes with price change detection on return
-- **Platform comparison** — deep links to Expedia, Booking.com, Google Flights, Kayak
-- **Budget flags** — set a budget; over-budget flights are flagged, never hidden
-- **Cost of staying** — estimated hotel, meals, and excursion costs per destination
-- **Shareable trip plans** — generate a public link for any search or set of flights
+- **Anywhere search.** ~320 hand-picked places (dense across Europe, plus hubs worldwide), plus anything that turns up in live flight fares.
+- **Every mode.** Train, coach, flight, ferry, rideshare and driving, each switchable, with limits on journey length, changes, overnight travel and time on the ground.
+- **Flexible dates.** Scan the next N weekends (pick which days you can leave and come back), a date range with a min/max number of nights, or exact dates. Set when you're free and when you must be home, and block out busy days.
+- **Budgets.** Travel budget, all-in budget, travellers, where you sleep (friends → hotel), under-26 fares, rail discount cards, checked bags.
+- **Your ranking.** Sliders for price, journey time, interests, time there and comfort, or sort by any single one.
+- **Interests.** Tap tags once to want them, twice to avoid them; filter by region, country or named places; domestic or abroad only; in-season only; skip places you've been.
+- **Keep things.** Save trips, keep a wishlist and a been-there list, save named setups, share a search as a link. Everything stays in the browser.
 
-## Tech Stack
+## Prices: real or estimated, always labelled
 
-| | |
-|---|---|
-| Framework | Next.js App Router (16.x) |
-| Styling | Tailwind CSS v4 + CSS custom properties |
-| Flight data | Amadeus Self-Service API (free tier) |
-| AI predictions | Groq SDK — `llama-3.3-70b-versatile` |
-| Charts | Recharts |
-| Icons | lucide-react |
-| Hosting | Vercel (auto-deploy from `main`) |
-
-## Getting Started
-
-### API Keys Needed
-
-Copy `.env.local.example` to `.env.local`:
-
-```bash
-cp .env.local.example .env.local
-```
-
-| Key | Source | Cost |
+| Mode | Prices | Source |
 |---|---|---|
-| `AMADEUS_CLIENT_ID` + `AMADEUS_CLIENT_SECRET` | [developers.amadeus.com](https://developers.amadeus.com) | Free (2,000 calls/month) |
-| `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) | Free tier |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3001` locally | — |
+| Flight | **Always real.** No real fare → no flight listed (links offered instead). | Ryanair fare finder (free, no key); Google Flights via SerpApi's free plan (optional) |
+| Coach | Real for the leading results and on demand; estimated otherwise | FlixBus (free, no key) |
+| Train | Estimated, with real timetables on demand | Transitous (free, open data) for timetables |
+| Ferry, rideshare, drive | Estimated | Links to Ferryhopper, BlaBlaCar, Google Maps, Rome2rio |
 
-### Run Dev Server
+Every price carries a `live` or `est.` stamp, and estimates link to where the real price lives.
+
+## Running it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Optional `.env.local`:
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+```
+# Google Flights fares for airlines beyond Ryanair. Free plan: https://serpapi.com
+SERPAPI_KEY=
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Without a key, Ryanair and FlixBus fares still work.
 
-## Learn More
+## Checks
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run check      # typecheck, tests, production build
+npm run data:airports   # rebuild lib/data/airports.json from OurAirports
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## How it's built
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Next.js (App Router), TypeScript, plain CSS. No UI framework.
+- `lib/search.ts` is the engine: pure, tested, takes live fares as input.
+- `lib/estimate.ts` models ground and sea fares; `lib/providers/*` fetch live data; `lib/live.ts` gathers it.
+- `components/RouteChart.tsx` draws the map with d3-geo in a Lambert conformal projection, the one aeronautical charts use.
 
-## Deploy on Vercel
+## Credits
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Timetables: [Transitous](https://transitous.org/sources/). Airports: [OurAirports](https://ourairports.com/data/) (public domain). Map data: Natural Earth via `world-atlas`. Town search: [Open-Meteo](https://open-meteo.com/) geocoding.
