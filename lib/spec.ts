@@ -43,6 +43,7 @@ export const DEFAULT_SPEC: SearchSpec = {
   when: DEFAULT_WHEN,
   modes: ALL_MODES_ON,
   maxLegHours: 10,
+  modeMaxHours: {},
   maxTransfers: 3,
   overnight: true,
   minHoursThere: 24,

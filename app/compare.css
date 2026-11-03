@@ -44,6 +44,25 @@
 /* all-in price in the list: smaller than the travel price, still easy to find */
 .slip .price .all-in { font-family: var(--f-mono); font-size: 0.9rem; color: var(--ink); font-weight: 600; }
 .slip .price .all-in i { font-style: normal; font-family: var(--f-sans); font-stretch: 75%; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.62rem; color: var(--ink-3); margin-right: 4px; }
+/* other ways there, in the results list */
+.other-ways { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.way-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px 2px 3px; border: 1px solid var(--rule-2); border-left: 3px solid var(--m); border-radius: var(--radius); background: var(--paper-2); font-size: 0.74rem; white-space: nowrap; }
+.way-chip b { font-family: var(--f-mono); font-weight: 600; }
+.way-chip span:not(.mode-mini):not(.mode-mini span) { font-family: var(--f-mono); color: var(--ink-3); }
+.way-chip i { font-style: normal; font-stretch: 70%; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.58rem; color: var(--ink-3); }
+.way-chip i.live { color: var(--ok); }
+.way-chip.more { border-left-color: var(--rule-2); color: var(--warn); font-size: 0.7rem; }
+.mode-mini { display: inline-flex; align-items: center; gap: 3px; font-stretch: 75%; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.66rem; }
+.mode-mini > span { display: inline-flex; align-items: center; gap: 2px; color: var(--m); }
+.mode-mini em { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 2px; background: var(--m); color: #fff; }
+.mode-mini em svg { width: 11px; height: 11px; }
+:root[data-theme='dark'] .mode-mini em { color: #0e1620; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .mode-mini em { color: #0e1620; } }
+.ledger.blocked tr { opacity: 0.75; }
+.mode-limits { display: grid; gap: 4px; }
+.mode-limit { display: grid; grid-template-columns: 34px 78px 1fr 44px; gap: 8px; align-items: center; font-size: 0.85rem; }
+.mode-limit svg.route { width: 34px; height: 10px; }
+.mode-limit b { text-align: right; font-size: 0.8rem; }
 .sortbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sortbar .caps { margin-right: 4px; }
 

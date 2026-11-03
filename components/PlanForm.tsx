@@ -319,6 +319,23 @@ export default function PlanForm({ spec, set, catalog, countries, quota, hasLive
           <input type="range" min={1} max={30} value={spec.maxLegHours} onChange={(e) => set({ maxLegHours: Number(e.target.value) })} />
         </div>
         <div className="field">
+          <span className="label">Longest stretch per mode · 0 = no extra limit</span>
+          <div className="mode-limits">
+            {MODES.filter((m) => spec.modes[m]).map((m) => {
+              const v = spec.modeMaxHours[m] ?? 0;
+              return (
+                <label key={m} className="mode-limit" data-mode={m}>
+                  <RouteSample mode={m} />
+                  <span>{MODE_LABEL[m]}</span>
+                  <input type="range" min={0} max={24} value={v} aria-label={`Longest ${MODE_LABEL[m]} stretch`}
+                    onChange={(e) => { const n = Number(e.target.value); const next = { ...spec.modeMaxHours }; if (n) next[m] = n; else delete next[m]; set({ modeMaxHours: next }); }} />
+                  <b className="mono">{v ? `${v} h` : '—'}</b>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+        <div className="field">
           <label>Time at the destination, at least: {spec.minHoursThere} h</label>
           <input type="range" min={0} max={120} step={2} value={spec.minHoursThere} onChange={(e) => set({ minHoursThere: Number(e.target.value) })} />
         </div>

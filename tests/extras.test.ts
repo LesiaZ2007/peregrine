@@ -124,6 +124,25 @@ describe('fly + ferry and leg prices', () => {
   });
 });
 
+describe('per-mode limits and other ways', () => {
+  it('keeps coaches under your coach limit and says why the rest are out', () => {
+    const r = runSearch(spec({ modeMaxHours: { bus: 3 }, when: { ...DEFAULT_WHEN, weekendsAhead: 1 } }), { today: TODAY });
+    for (const t of r.trips) for (const o of t.options) if (o.mode === 'bus' && !o.legs) expect(o.outMin / 60).toBeLessThanOrEqual(3);
+    const why = r.trips.flatMap((t) => t.blocked ?? []).find((b) => b.option.mode === 'bus');
+    expect(why?.why).toMatch(/by coach \(your limit is 3 h\)/);
+  });
+
+  it('checks the coach leg of a flight + coach trip on its own', () => {
+    const fare = { from: 'MAD', depart: '2026-11-06', ret: '2026-11-08', toAirport: 'LIS', name: 'Lisbon', country: 'Portugal', lat: 38.77, lon: -9.13, priceUsd: 40, stops: 0, carrier: 'Ryanair', link: 'x', source: 'Ryanair' as const };
+    const base = spec({ scope: 'places', places: ['evora'], when: { ...DEFAULT_WHEN, weekendsAhead: 1 }, maxLegHours: 12 });
+    const ok = runSearch({ ...base, modeMaxHours: { train: 3, bus: 3 } }, { today: TODAY, flights: [fare] });
+    expect(ok.trips[0]?.options.some((o) => o.mode === 'flight')).toBe(true);
+    const tight = runSearch({ ...base, modeMaxHours: { train: 0.5, bus: 0.5 } }, { today: TODAY, flights: [fare] });
+    const t = tight.trips[0] ?? tight.near[0];
+    expect(t?.options.some((o) => o.mode === 'flight') ?? false).toBe(false);
+  });
+});
+
 describe('countries you have been to', () => {
   it('can leave them out of results', () => {
     const all = runSearch(spec(), { today: TODAY });

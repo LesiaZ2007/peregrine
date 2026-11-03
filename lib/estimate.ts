@@ -94,11 +94,11 @@ const hrs = (h: number) => (h < 1 ? `${Math.round(h * 60)} min` : `${Math.round(
 /** return price for a foot passenger on a crossing of `h` hours */
 export const ferryLegPrice = (h: number, lvl = 1) => Math.round((14 + h * 8) * (0.7 + lvl * 0.3) * 2);
 /** Two-part journey where the crossing is part of a total fare: show both parts, summing to the total. */
-function split(totalRt: number, crossingRt: number, mode: Mode, groundNote: string, crossNote: string): Hop[] {
+function split(totalRt: number, crossingRt: number, mode: Mode, groundNote: string, crossNote: string, totalMin: number, crossMin: number): Hop[] {
   const cross = Math.min(crossingRt, totalRt * 0.6);
   return [
-    { mode, note: groundNote, price: Math.round(totalRt - cross), source: 'estimate' },
-    { mode: 'ferry', note: crossNote, price: Math.round(cross), source: 'estimate' },
+    { mode, note: groundNote, price: Math.round(totalRt - cross), source: 'estimate', min: Math.max(0, Math.round(totalMin - crossMin)) },
+    { mode: 'ferry', note: crossNote, price: Math.round(cross), source: 'estimate', min: Math.round(crossMin) },
   ];
 }
 
@@ -151,7 +151,7 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     const night = outMin > 8 * 60 && km > 600;
     out.push(option('train', l, outMin, fare, 2.2, transfers, {
       overnight: night, note: night ? 'a night train saves a hotel night' : undefined,
-      legs: ferry ? split(fare * 2, ferryLegPrice(ferry, lvl), 'train', 'train to the coast and on the other side', `ferry crossing, about ${hrs(ferry)}`) : undefined,
+      legs: ferry ? split(fare * 2, ferryLegPrice(ferry, lvl), 'train', 'train to the coast and on the other side', `ferry crossing, about ${hrs(ferry)}`, outMin, ferry * 60) : undefined,
     }));
   }
 
@@ -162,7 +162,7 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     const night = outMin > 7 * 60;
     out.push(option('bus', l, outMin, fare, 1.9, Math.floor(km / 900), {
       overnight: night, note: night ? 'overnight coach' : undefined,
-      legs: ferry ? split(fare * 2, ferryLegPrice(ferry, lvl), 'bus', 'coach to the coast and on the other side', `ferry crossing, about ${hrs(ferry)}`) : undefined,
+      legs: ferry ? split(fare * 2, ferryLegPrice(ferry, lvl), 'bus', 'coach to the coast and on the other side', `ferry crossing, about ${hrs(ferry)}`, outMin, ferry * 60) : undefined,
     }));
   }
 
@@ -178,8 +178,8 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
       ...option('ferry', l, outMin, (portFare + sail) / 2, 1.7, 1, {
         overnight: ferry >= 8, note: ferry >= 8 ? 'overnight sailing, cabin extra' : undefined,
         legs: [
-          { mode: toPort, note: `${toPort === 'train' ? 'train' : 'coach'} to the port`, price: Math.round(portFare), source: 'estimate' },
-          { mode: 'ferry', note: `sailing, about ${hrs(ferry)}`, price: Math.round(sail), source: 'estimate' },
+          { mode: toPort, note: `${toPort === 'train' ? 'train' : 'coach'} to the port`, price: Math.round(portFare), source: 'estimate', min: Math.round(outMin - ferry * 60 - 90) },
+          { mode: 'ferry', note: `sailing, about ${hrs(ferry)}`, price: Math.round(sail), source: 'estimate', min: Math.round(ferry * 60) },
         ],
       }),
     });
@@ -191,7 +191,7 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     const outMin = (km / 82) * 60 + 25 + (ferry ? ferry * 60 : 0);
     out.push(option('rideshare', l, outMin, Math.max(5, km * 0.055 * (0.6 + lvl * 0.4)), 1.5, 0, {
       note: 'seat in a shared car, times depend on drivers',
-      legs: ferry ? split(Math.max(5, km * 0.055 * (0.6 + lvl * 0.4)) * 2, ferryLegPrice(ferry, lvl), 'rideshare', 'shared car', `foot passenger on the ferry, about ${hrs(ferry)}`) : undefined,
+      legs: ferry ? split(Math.max(5, km * 0.055 * (0.6 + lvl * 0.4)) * 2, ferryLegPrice(ferry, lvl), 'rideshare', 'shared car', `foot passenger on the ferry, about ${hrs(ferry)}`, outMin, ferry * 60) : undefined,
     }));
   }
 
@@ -203,8 +203,8 @@ export function estimateModes(l: Leg, p: Profile, modes: Record<Mode, boolean>):
     out.push(option('drive', l, outMin, costCar / share, 1.3, 0, {
       note: `fuel and tolls split ${share} way${share > 1 ? 's' : ''}`,
       legs: ferry ? [
-        { mode: 'drive', note: 'fuel and tolls, both ways', price: Math.round(((km * 0.14 * (0.7 + lvl * 0.3)) / share) * 2), source: 'estimate' },
-        { mode: 'ferry', note: `car ferry, about ${hrs(ferry)}`, price: Math.round(((60 + ferry * 25) / share) * 2), source: 'estimate' },
+        { mode: 'drive', note: 'fuel and tolls, both ways', price: Math.round(((km * 0.14 * (0.7 + lvl * 0.3)) / share) * 2), source: 'estimate', min: Math.round(outMin - ferry * 60 - 60) },
+        { mode: 'ferry', note: `car ferry, about ${hrs(ferry)}`, price: Math.round(((60 + ferry * 25) / share) * 2), source: 'estimate', min: Math.round(ferry * 60) },
       ] : undefined,
     }));
   }

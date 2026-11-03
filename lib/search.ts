@@ -10,8 +10,9 @@ import { daysBetween, fmtDay, hours, monthOf, tripWindows, weekday } from './dat
 import { estimateModes, ferryHours, ferryLegPrice, type Leg } from './estimate';
 import { haversine } from './geo';
 import { linksFor } from './links';
+import { money } from './money';
 import type {
-  Destination, FlightFare, GroundFare, HomeBase, Option, SearchResult, SearchSpec, Trip, TripWindow,
+  Destination, FlightFare, GroundFare, HomeBase, Mode, Option, SearchResult, SearchSpec, Trip, TripWindow,
 } from './types';
 
 export const MAX_GOOGLE_CALLS = 6;
@@ -91,13 +92,29 @@ function effort(o: Option, spec: SearchSpec): number {
   return o.price + (o.extraEst ?? 0) + (o.outMin / 60) * perHour * 2 + o.transfers * 4 * (0.5 + w.comfort) - (o.source === 'live' ? 3 : 0);
 }
 
+const MODE_WORD: Record<Mode, string> = { flight: 'air', train: 'train', bus: 'coach', ferry: 'ferry', rideshare: 'rideshare', drive: 'car' };
+
+/** Why an option breaks your limits, or null if it doesn't. */
+function whyBlocked(o: Option, spec: SearchSpec): string | null {
+  const h = o.outMin / 60 - spec.maxLegHours;
+  if (h > 0) return `${Math.ceil(h * 2) / 2} h over your journey limit`;
+  if (o.transfers > spec.maxTransfers) return `${o.transfers} changes (you allow ${spec.maxTransfers})`;
+  if (!spec.overnight && o.overnight) return 'travels overnight';
+  const price = o.price + (o.extraEst ?? 0);
+  if (spec.budgetTransport != null && price > spec.budgetTransport) return `${money(price - spec.budgetTransport, spec.currency)} over your travel budget`;
+  // per-mode limits ("no more than 4 h on a coach"), checked leg by leg where legs are known
+  const lim = spec.modeMaxHours ?? {};
+  const parts: { mode: Mode; min: number }[] = o.legs?.length
+    ? o.legs.filter((l) => l.min != null).map((l) => ({ mode: l.mode, min: l.min! }))
+    : [{ mode: o.mode, min: o.outMin }];
+  for (const p of parts) {
+    const max = lim[p.mode];
+    if (max != null && max > 0 && p.min / 60 > max) return `${Math.round((p.min / 60) * 2) / 2} h by ${MODE_WORD[p.mode]} (your limit is ${max} h)`;
+  }
+  return null;
+}
 function keepOption(o: Option, spec: SearchSpec): boolean {
-  return (
-    o.outMin / 60 <= spec.maxLegHours &&
-    o.transfers <= spec.maxTransfers &&
-    (spec.overnight || !o.overnight) &&
-    (spec.budgetTransport == null || o.price + (o.extraEst ?? 0) <= spec.budgetTransport)
-  );
+  return whyBlocked(o, spec) === null;
 }
 
 const hhmm = (iso?: string) => (iso && iso.length >= 16 ? hours(iso.slice(11, 16)) : null);
@@ -140,9 +157,9 @@ function flightOption(f: FlightFare, leg: Leg, w: TripWindow, spec: SearchSpec):
   const word = (m: 'train' | 'bus') => (m === 'train' ? 'train' : 'coach');
   const legs: Option['legs'] = before || after
     ? [
-        ...(before ? [{ mode: before.mode, note: `${word(before.mode)} to ${f.from}, ${before.km} km, about ${Math.round(before.min / 6) / 10} h`, price: before.usd, source: 'estimate' as const }] : []),
-        { mode: 'flight' as const, note: `fly ${f.from} → ${toAir ?? leg.toName}`, price: Math.round(f.priceUsd + bag), source: 'live' as const },
-        ...(after ? [{ mode: after.mode, note: `${word(after.mode)} from ${toAir} to ${leg.toName}, ${after.km} km, about ${Math.round(after.min / 6) / 10} h`, price: after.usd, source: 'estimate' as const }] : []),
+        ...(before ? [{ mode: before.mode, note: `${word(before.mode)} to ${f.from}, ${before.km} km, about ${Math.round(before.min / 6) / 10} h`, price: before.usd, source: 'estimate' as const, min: before.min }] : []),
+        { mode: 'flight' as const, note: `fly ${f.from} → ${toAir ?? leg.toName}`, price: Math.round(f.priceUsd + bag), source: 'live' as const, min: air + (AIRPORT_BEFORE_H + AIRPORT_AFTER_H) * 60 },
+        ...(after ? [{ mode: after.mode, note: `${word(after.mode)} from ${toAir} to ${leg.toName}, ${after.km} km, about ${Math.round(after.min / 6) / 10} h`, price: after.usd, source: 'estimate' as const, min: after.min }] : []),
       ]
     : undefined;
   const extraEst = (before?.usd ?? 0) + (after?.usd ?? 0);
@@ -200,10 +217,10 @@ function flyFerryOption(f: FlightFare, gate: Destination, dest: Destination, leg
   const seaKm = haversine(gate.lat, gate.lon, dest.lat, dest.lon);
   const hours = seaKm / 28 + 0.5;
   const sail = ferryLegPrice(hours);
-  const flightLegs = (base.legs ?? [{ mode: 'flight' as const, note: `fly ${f.from} → ${gate.airports[0]}`, price: base.price, source: 'live' as const }]);
+  const flightLegs = (base.legs ?? [{ mode: 'flight' as const, note: `fly ${f.from} → ${gate.airports[0]}`, price: base.price, source: 'live' as const, min: base.outMin }]);
   return {
     ...base,
-    legs: [...flightLegs, { mode: 'ferry', note: `ferry ${gate.name} → ${dest.name}, about ${Math.round(hours * 2) / 2} h`, price: sail, source: 'estimate' }],
+    legs: [...flightLegs, { mode: 'ferry', note: `ferry ${gate.name} → ${dest.name}, about ${Math.round(hours * 2) / 2} h`, price: sail, source: 'estimate', min: Math.round(hours * 60) }],
     extraEst: (base.extraEst ?? 0) + sail,
     outMin: base.outMin + Math.round(hours * 60 + 45),
     transfers: base.transfers + 1,
@@ -227,6 +244,8 @@ interface Candidate {
 
 /** Choose the best option for a trip and work out time there, stay cost and total. Mutates. */
 export function settleTrip(t: Trip, spec: SearchSpec): boolean {
+  const blocked = t.options.map((o) => ({ option: o, why: whyBlocked(o, spec) })).filter((b): b is { option: Option; why: string } => b.why !== null);
+  t.blocked = [...(t.blocked ?? []).filter((b) => !t.options.includes(b.option)), ...blocked];
   t.options = t.options.filter((o) => keepOption(o, spec));
   if (!t.options.length) return false;
   t.options.sort((a, b) => effort(a, spec) - effort(b, spec));
@@ -262,7 +281,7 @@ export function relaxSpec(spec: SearchSpec): SearchSpec {
 /** Why a trip found with relaxed limits breaks the real ones. Empty if it doesn't. */
 export function nearReasons(t: Trip, spec: SearchSpec): string[] {
   const r: string[] = [];
-  const usd = (v: number) => `$${Math.round(v)}`;
+  const usd = (v: number) => money(v, spec.currency);
   if (spec.budgetTotal != null && t.total > spec.budgetTotal) r.push(`${usd(t.total - spec.budgetTotal)} over your all-in budget`);
   const travel = t.best.price + (t.best.extraEst ?? 0);
   if (spec.budgetTransport != null && travel > spec.budgetTransport) r.push(`${usd(travel - spec.budgetTransport)} over your travel budget`);

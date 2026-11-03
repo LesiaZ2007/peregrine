@@ -148,6 +148,28 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
           </table>
         </section>
 
+        {(t.blocked?.length ?? 0) > 0 && (
+          <section className="sheet-sec">
+            <h3>Also possible, outside your settings</h3>
+            <table className="ledger blocked">
+              <tbody>
+                {t.blocked!.map((b, i) => (
+                  <tr key={i}>
+                    <td>
+                      <ModeChain option={b.option} />
+                      <div className="near-why" style={{ fontSize: '0.78rem', marginTop: 4 }}>{b.why}</div>
+                      {b.option.legs && <ol className="legs">{b.option.legs.map((l, k) => <li key={k} data-mode={l.mode}>{l.note}{l.price != null && <> · <b className="mono">{money(l.price, cur)}</b></>}</li>)}</ol>}
+                      <div className="links">{b.option.links.slice(0, 3).map((l) => <a key={l.label} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}</div>
+                    </td>
+                    <td className="mono" style={{ fontSize: '0.85rem' }}>{duration(b.option.outMin)}<div className="muted">{b.option.transfers ? `${b.option.transfers} chg` : 'direct'}</div></td>
+                    <td className="num">{money(b.option.price + (b.option.extraEst ?? 0), cur)}<div><span className={`stamp ${b.option.source === 'live' ? 'live' : 'est'}`}>{b.option.source === 'live' ? 'live' : 'est.'}</span></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+
         {hint && (
           <section className="sheet-sec">
             <h3>Cheaper flights?</h3>

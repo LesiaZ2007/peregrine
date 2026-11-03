@@ -112,6 +112,8 @@ export interface SearchSpec {
 
   modes: Record<Mode, boolean>;
   maxLegHours: number;
+  /** longest you'll spend on one kind of transport, hours (e.g. { bus: 4 }); unset = no extra limit */
+  modeMaxHours: Partial<Record<Mode, number>>;
   maxTransfers: number;
   overnight: boolean;
   minHoursThere: number;
@@ -145,6 +147,8 @@ export interface Hop {
   note: string;
   /** this leg's return price per person, USD, when known */
   price?: number;
+  /** minutes this leg takes one way, when known */
+  min?: number;
   source?: 'live' | 'estimate';
 }
 
@@ -204,6 +208,8 @@ export interface Trip {
   flightHint: FlightHint | null;
   /** set when the trip is just outside your settings: why */
   nearMiss?: string[];
+  /** other ways there that break one of your limits, with the reason */
+  blocked?: { option: Option; why: string }[];
   /** best price for each date window tried, for comparing dates */
   alts: { window: TripWindow; mode: Mode; price: number; total: number; source: Option['source'] }[];
 }

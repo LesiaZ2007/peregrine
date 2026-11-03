@@ -72,9 +72,21 @@ export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starre
           <ModeChain option={b} />
           <span className="mono">{duration(b.outMin)}{b.transfers ? ` · ${b.transfers} chg` : ''}</span>
         </span>
-        {others.length > 0 && (
-          <span className="mono muted" style={{ fontSize: '0.74rem' }}>
-            or {others.map((o) => `${o.legs ? [...new Set(o.legs.map((l) => l.mode))].join('+') : o.mode} ${money(o.price + (o.extraEst ?? 0), cur)}`).join(', ')}
+        {(others.length > 0 || (t.blocked?.length ?? 0) > 0) && (
+          <span className="other-ways" aria-label="Other ways there">
+            {others.map((o, i) => (
+              <span key={i} className="way-chip" data-mode={o.mode} title={o.note}>
+                <ModeChain option={o} compact />
+                <b>{money(o.price + (o.extraEst ?? 0), cur)}</b>
+                <span>{duration(o.outMin)}</span>
+                <i className={o.source === 'live' ? 'live' : ''}>{o.source === 'live' ? (o.extraEst ? 'live+est.' : 'live') : 'est.'}</i>
+              </span>
+            ))}
+            {(t.blocked?.length ?? 0) > 0 && (
+              <span className="way-chip more" title={t.blocked!.map((b) => `${b.option.mode}: ${b.why}`).join('\n')}>
+                +{t.blocked!.length} outside your limits
+              </span>
+            )}
           </span>
         )}
         {t.flightHint?.cheaperLikely && <span className="hint-chip">other airlines may be cheaper</span>}
