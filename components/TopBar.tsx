@@ -2,7 +2,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { useStored } from '@/lib/store';
+import { CURRENCIES, CURRENCY_NAME } from '@/lib/money';
+import { DEFAULT_SPEC, normalizeSpec } from '@/lib/spec';
+import { K, useStored } from '@/lib/store';
+import type { Currency, SearchSpec } from '@/lib/types';
 import { Mark } from './icons';
 
 type Theme = 'auto' | 'light' | 'dark';
@@ -12,6 +15,8 @@ const LABEL: Record<Theme, string> = { auto: 'Auto', light: 'Day', dark: 'Night'
 export default function TopBar() {
   const path = usePathname();
   const [theme, setTheme] = useStored<Theme>('pg:theme', 'auto');
+  const [spec, setSpec] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
+  const cur = normalizeSpec(spec).currency;
 
   useEffect(() => {
     const el = document.documentElement;
@@ -40,6 +45,12 @@ export default function TopBar() {
         ))}
       </nav>
       <div className="bar-right">
+        <label className="cur-switch" title="Show prices in (approximate rates)">
+          <span className="vh">Currency</span>
+          <select value={cur} onChange={(e) => setSpec((s) => ({ ...normalizeSpec(s), currency: e.target.value as Currency }))}>
+            {CURRENCIES.map((c) => <option key={c} value={c}>{c} · {CURRENCY_NAME[c]}</option>)}
+          </select>
+        </label>
         <button className="btn small ghost" onClick={() => setTheme(NEXT[theme])} title="Switch day / night chart">
           <ThemeGlyph theme={theme} /> {LABEL[theme]}
         </button>

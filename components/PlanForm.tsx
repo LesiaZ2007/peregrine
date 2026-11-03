@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { shortDay } from '@/lib/dates';
-import { fromUsd, sign, toUsd } from '@/lib/money';
+import { CURRENCIES, CURRENCY_NAME, fromUsd, sign, toUsd } from '@/lib/money';
 import type { Currency, FoodStyle, Mode, Region, SearchSpec, SortKey, StayStyle, Tag, When } from '@/lib/types';
 import { MODES } from '@/lib/types';
 import HomeBasePicker from './HomeBasePicker';
@@ -347,7 +347,12 @@ export default function PlanForm({ spec, set, catalog, countries, quota, hasLive
       </Sec>
 
       <Sec n="05" title="Money" sum={spec.budgetTotal != null ? `≤ ${sign(cur)}${moneyIn(spec.budgetTotal)} all in` : spec.budgetTransport != null ? `≤ ${sign(cur)}${moneyIn(spec.budgetTransport)} travel` : 'no limit'}>
-        <Seg<Currency> label="Currency" value={cur} onChange={(currency) => set({ currency })} options={[['EUR', '€ EUR'], ['GBP', '£ GBP'], ['USD', '$ USD']]} />
+        <div className="field">
+          <label>Currency (approximate rates)</label>
+          <select className="input" value={cur} onChange={(e) => set({ currency: e.target.value as Currency })}>
+            {CURRENCIES.map((c) => <option key={c} value={c}>{c} · {CURRENCY_NAME[c]}</option>)}
+          </select>
+        </div>
         <div className="grid2">
           <Num label="Travel budget" suffix={`${sign(cur)} return`} value={moneyIn(spec.budgetTransport)} onChange={(v) => set({ budgetTransport: moneyOut(v) })} />
           <Num label="All-in budget" suffix={`${sign(cur)} per person`} value={moneyIn(spec.budgetTotal)} onChange={(v) => set({ budgetTotal: moneyOut(v) })} />

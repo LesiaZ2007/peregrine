@@ -165,6 +165,20 @@ describe('coach operators and price confidence', () => {
     expect(t.options.filter((o) => o.mode === 'bus')).toHaveLength(1);
   });
 
+  it('suggests cheaper other airlines next to a pricey live fare, and uses it for the total', () => {
+    const pricey = { from: 'MAD', depart: '2026-11-06', ret: '2026-11-08', toAirport: 'LIS', name: 'Lisbon', country: 'Portugal', lat: 38.77, lon: -9.13, priceUsd: 220, stops: 0, carrier: 'Ryanair FR1', link: 'x', source: 'Ryanair' as const };
+    const r = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one, modes: { train: false, bus: false, rideshare: false, ferry: false, drive: false, flight: true } }), { today: TODAY, flights: [pricey] });
+    const t = r.trips[0];
+    const flights = t.options.filter((o) => o.mode === 'flight');
+    expect(flights.map((o) => o.source).sort()).toEqual(['estimate', 'live']);
+    const other = flights.find((o) => o.alsoLive)!;
+    expect(other.price).toBeLessThan(220);
+    expect(other.carrier).toMatch(/^Other airlines/);
+    expect(other.carrier).not.toMatch(/Ryanair/);
+    expect(t.best.alsoLive).toBe(true);
+    expect(other.sure?.level).toBe(3);
+  });
+
   it('rates how sure each price is', () => {
     const fare = { from: 'MAD', depart: '2026-11-06', ret: '2026-11-08', toAirport: 'LIS', name: 'Lisbon', country: 'Portugal', lat: 38.77, lon: -9.13, priceUsd: 40, stops: 0, carrier: 'Ryanair', link: 'x', source: 'Ryanair' as const };
     const live = runSearch(spec({ scope: 'places', places: ['lisbon'], when: one }), { today: TODAY, flights: [fare] });

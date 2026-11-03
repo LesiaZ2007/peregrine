@@ -46,7 +46,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
       const r = await fetch('/api/search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(`Search failed (${r.status})`);
       setRes((await r.json()) as Res);
-      setRanFor(JSON.stringify({ ...s, sort: 'score' }));
+      setRanFor(JSON.stringify({ ...s, sort: 'score', currency: 'USD' }));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -69,7 +69,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
   }, [run, setStored, spec]);
 
   // sorting is instant and client-side, so it doesn't make results "stale"
-  const sansSort = (x: SearchSpec) => JSON.stringify({ ...x, sort: 'score' });
+  const sansSort = (x: SearchSpec) => JSON.stringify({ ...x, sort: 'score', currency: 'USD' });
   const stale = res && ranFor !== sansSort(spec);
   const trips = useMemo(() => {
     const by: Record<SortKey, (t: Trip) => number> = {

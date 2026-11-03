@@ -93,6 +93,19 @@ export interface HintInput {
   ret: string;
 }
 
+/** Budget airlines around both ends of a route, leaving out one already shown. */
+export function budgetAirlines(fromCc: string, toCc: string, except = ''): string[] {
+  return [...new Set([...(BUDGET[fromCc] ?? []), ...(BUDGET[toCc] ?? [])])]
+    .filter((a) => !except || !a.toLowerCase().startsWith(except.toLowerCase()))
+    .slice(0, 6);
+}
+
+/** A slightly optimistic "you could probably find this" fare, USD return. */
+export function likelyCheapFare(km: number): number {
+  const { low, high } = typicalLowFare(km);
+  return Math.round(low + (high - low) * 0.2);
+}
+
 export function flightHint(h: HintInput, real: Option | undefined): FlightHint | null {
   if (!h.fromAir || !h.toAir || h.fromAir === h.toAir || h.km < 250) return null;
   const { low, high } = typicalLowFare(h.km);

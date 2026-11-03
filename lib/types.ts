@@ -48,7 +48,8 @@ export interface HomeBase {
   airports: string[];
 }
 
-export type Currency = 'USD' | 'EUR' | 'GBP';
+export type Currency =
+  | 'USD' | 'EUR' | 'GBP' | 'CHF' | 'CZK' | 'PLN' | 'HUF' | 'SEK' | 'NOK' | 'DKK' | 'RON' | 'TRY' | 'JPY' | 'CAD' | 'AUD' | 'MXN';
 export type StayStyle = 'free' | 'hostel' | 'budget' | 'mid';
 export type FoodStyle = 'self' | 'cheap' | 'restaurants';
 export type SortKey = 'score' | 'price' | 'time' | 'hoursThere' | 'distance' | 'total';
@@ -169,6 +170,8 @@ export interface Option {
   carrier?: string;
   stops?: number;
   note?: string;
+  /** an "other airlines, likely from …" estimate shown beside a live fare */
+  alsoLive?: boolean;
   /** how much to trust the price: 1 rough guess … 5 real fare for your dates */
   sure?: { level: 1 | 2 | 3 | 4 | 5; why: string };
   /** waypoints [lon, lat] for drawing the journey (town → airport → airport → town …) */

@@ -1,7 +1,7 @@
 // The search engine. Pure: live fares are passed in, so it runs the same in tests.
 // Flights are ONLY ever real fares. Ground modes start as estimates and get swapped for
 // real fares (e.g. FlixBus) when a provider has them.
-import { flightHint, typicalLowFare } from './airlines';
+import { budgetAirlines, flightHint, likelyCheapFare, typicalLowFare } from './airlines';
 import { airport, matchPlace, nearestAirports } from './catalog';
 import { sureness } from './confidence';
 import { costTotal, stayCosts } from './costs';
@@ -91,7 +91,8 @@ function effort(o: Option, spec: SearchSpec): number {
   const perHour = 3 + 18 * (w.time / Math.max(0.1, w.price + w.time));
   // real prices are worth a small edge over guesses
   // real prices get a small edge; guessed flight fares carry an uncertainty penalty
-  const doubt = o.mode === 'flight' && o.source === 'estimate' ? 12 + o.price * 0.12 : 0;
+  // ("other airlines" beside a live fare gets only a nudge: missing a cheaper flight costs more than a slight overestimate)
+  const doubt = o.mode === 'flight' && o.source === 'estimate' ? (o.alsoLive ? 4 : 12 + o.price * 0.12) : 0;
   return o.price + (o.extraEst ?? 0) + (o.outMin / 60) * perHour * 2 + o.transfers * 4 * (0.5 + w.comfort) - (o.source === 'live' ? 3 : 0) + doubt;
 }
 
@@ -418,6 +419,22 @@ function searchCore(spec: SearchSpec, input: SearchInput): SearchResult {
           const gate = gatewayFor(flightFare.toAirport, dest);
           const ff = gate ? flyFerryOption(flightFare, gate, dest, leg, w, spec) : null;
           options.unshift(ff ?? flightOption(flightFare, leg, w, spec));
+          // a live fare (often Ryanair) isn't the whole market: if a typical cheap fare on this distance
+          // is clearly lower, show "other airlines, likely from …" so the trip doesn't look pricier than it is
+          if (fareHere && !ff) {
+            const likely = Math.round(likelyCheapFare(km) * (lead < 7 ? 1.4 : lead < 21 ? 1.1 : 1));
+            if (fareHere.priceUsd - likely >= 28) {
+              const carrierWord = fareHere.carrier.split(' ')[0];
+              const names = budgetAirlines(o.cc, dest.cc, carrierWord);
+              const guess = flightOption({ ...estimatedFare(fareHere.from, fareHere.toAirport ?? dest.airports[0], km, w, lead), priceUsd: likely, priceHighUsd: Math.round(fareHere.priceUsd) }, leg, w, spec);
+              options.splice(1, 0, {
+                ...guess,
+                alsoLive: true,
+                carrier: names.length ? `Other airlines: ${names.slice(0, 4).join(', ')}` : 'Other airlines',
+                note: `${carrierWord}'s fare is ${money(fareHere.priceUsd, spec.currency)}; other airlines on this distance often go for about ${money(likely, spec.currency)}. Check before you book.`,
+              });
+            }
+          }
         }
         // islands: fly to a nearby mainland gateway with a real fare, then the ferry
         if (spec.modes.flight && spec.modes.ferry && !flightFare) {

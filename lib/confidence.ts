@@ -33,6 +33,7 @@ function modeGuess(mode: Mode, km: number, cc: string[]): Sureness {
 /** Confidence in an option's total price. Multi-leg journeys are as sure as their least sure leg. */
 export function sureness(o: Option, km: number, cc: string[]): Sureness {
   if (o.source === 'live' && !o.extraEst) return { level: 5, why: 'real fare for your dates' };
+  if (o.alsoLive) return { level: 3, why: 'likely price on other airlines; the live fare beside it is the most you should pay' };
   if (o.legs?.length) {
     const parts = o.legs.map((l) =>
       l.source === 'live' ? { level: 5 as const, why: 'real fare' } : modeGuess(l.mode, km, cc),
