@@ -1,12 +1,26 @@
 import { NextResponse } from 'next/server';
 import { runTool, TOOLS } from '@/lib/chatTools';
 import { toUsd } from '@/lib/money';
+import { retryAfterSeconds } from '@/lib/retryAfter';
 import { normalizeSpec } from '@/lib/spec';
 
 // Chat assistant on Groq's free tier (OpenAI-compatible API). Key: GROQ_API_KEY.
 const URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'openai/gpt-oss-120b';
+// Groq's free tier allows ~8k tokens a minute per model, counting the prompt plus the reply allowance,
+// so every request is kept small, and a busy model hands over to the next one (each has its own allowance).
+const MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
 const MAX_TOOL_ROUNDS = 3;
+const REPLY_TOKENS = 1100;
+const CONTEXT_CHARS = 6_000;
+const TOOL_CHARS = 5_000;
+/** wait this long at most for the per-minute allowance to refill before giving up */
+const MAX_WAIT_S = 20;
+
+class RateLimited extends Error {
+  constructor(public waitS: number) { super('rate_limited'); }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Settings the assistant may suggest; everything else in a suggestion is dropped. */
 const ALLOWED = new Set([
@@ -43,32 +57,23 @@ export async function POST(req: Request) {
   const key = process.env.GROQ_API_KEY;
   if (!key) return NextResponse.json({ error: 'no_key', message: 'The assistant needs a free Groq API key (GROQ_API_KEY) on the server.' }, { status: 503 });
   const body = (await req.json().catch(() => null)) as { messages?: Msg[]; context?: string; spec?: unknown } | null;
-  const messages = (body?.messages ?? []).filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-12);
+  const messages = (body?.messages ?? []).filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-8);
   if (!messages.length) return NextResponse.json({ error: 'bad_params' }, { status: 400 });
-  const context = String(body?.context ?? '').slice(0, 24_000);
+  const context = String(body?.context ?? '').slice(0, CONTEXT_CHARS);
   const spec = normalizeSpec(body?.spec);
 
   const convo: ApiMsg[] = [
     { role: 'system', content: SYSTEM },
     { role: 'system', content: `Current state:\n${context}` },
-    ...messages.map((m) => ({ role: m.role, content: m.content.slice(0, 2000) })),
+    // earlier answers (tables, charts) are long; the latest message is what matters most
+    ...messages.map((m, i) => ({ role: m.role, content: m.content.slice(0, i === messages.length - 1 ? 2000 : 900) })),
   ];
   const used: string[] = [];
 
   try {
     let text = '';
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const res = await fetch(URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: MODEL, temperature: 0.3, max_completion_tokens: 1800, reasoning_effort: 'low', reasoning_format: 'hidden',
-          messages: convo, ...(round < MAX_TOOL_ROUNDS ? { tools: TOOLS, tool_choice: 'auto' } : {}),
-        }),
-        signal: AbortSignal.timeout(60_000),
-      });
-      const j = (await res.json()) as { choices?: { message?: ApiMsg }[]; error?: { message?: string } };
-      if (!res.ok) throw new Error(j.error?.message ?? `Groq ${res.status}`);
+      const j = await complete(key, convo, round < MAX_TOOL_ROUNDS);
       const msg = j.choices?.[0]?.message;
       if (msg?.tool_calls?.length) {
         convo.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls });
@@ -82,7 +87,7 @@ export async function POST(req: Request) {
             out = `Tool failed: ${(e as Error).message}`;
           }
           used.push(call.function.name === 'lookup_places' ? `looked up ${(args.names as string[] | undefined)?.join(', ') ?? 'places'}` : 'ran a search');
-          convo.push({ role: 'tool', tool_call_id: call.id, name: call.function.name, content: out.slice(0, 12_000) });
+          convo.push({ role: 'tool', tool_call_id: call.id, name: call.function.name, content: out.slice(0, TOOL_CHARS) });
         }
         continue;
       }
@@ -103,6 +108,43 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ reply: text.replace(/```settings[\s\S]*?```/, '').trim(), patch, used });
   } catch (e) {
-    return NextResponse.json({ error: 'upstream', message: (e as Error).message }, { status: 502 });
+    if (e instanceof RateLimited) {
+      const s = Math.ceil(e.waitS);
+      return NextResponse.json(
+        { error: 'rate_limited', retryAfter: s, message: `The assistant is busy: the free AI plan only allows so much per minute. Try again in about ${s < 60 ? `${s} seconds` : `${Math.ceil(s / 60)} minutes`}.` },
+        { status: 429, headers: { 'retry-after': String(s) } },
+      );
+    }
+    // Groq's own error text can include account details, so it stays in the server log
+    console.error('chat upstream error:', (e as Error).message);
+    return NextResponse.json({ error: 'upstream', message: 'The assistant couldn’t answer just now. Try again in a moment.' }, { status: 502 });
   }
+}
+
+type Completion = { choices?: { message?: ApiMsg }[]; error?: { message?: string } };
+
+/** One model call. A rate-limited model hands over to the next; if all are busy, wait briefly once. */
+async function complete(key: string, convo: ApiMsg[], withTools: boolean): Promise<Completion> {
+  let shortest = Infinity;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const model of MODELS) {
+      const res = await fetch(URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model, temperature: 0.3, max_completion_tokens: REPLY_TOKENS, reasoning_effort: 'low', reasoning_format: 'hidden',
+          messages: convo, ...(withTools ? { tools: TOOLS, tool_choice: 'auto' } : {}),
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      const j = (await res.json().catch(() => ({}))) as Completion;
+      if (res.ok) return j;
+      const message = j.error?.message ?? `Groq ${res.status}`;
+      if (res.status !== 429) throw new Error(message);
+      shortest = Math.min(shortest, retryAfterSeconds(res.headers.get('retry-after'), message));
+    }
+    if (attempt === 0 && shortest <= MAX_WAIT_S) await sleep(shortest * 1000 + 250);
+    else break;
+  }
+  throw new RateLimited(shortest);
 }

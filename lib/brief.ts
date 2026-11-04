@@ -33,9 +33,9 @@ export function chatContext(o: { spec: SearchSpec; results?: Trip[]; near?: Trip
   return [
     `Page: ${o.page}. Currency: ${cur}.`,
     `Settings JSON (budgets in USD): ${specBrief(o.spec)}`,
-    block('Results (ranked)', o.results, 15),
-    block('Just outside the settings', o.near, 8),
-    block('Starred', o.starred, 20),
+    block('Results (ranked)', o.results, 10),
+    block('Just outside the settings', o.near, 5),
+    block('Starred', o.starred, 8),
     block('Compare list', o.compare, 4),
     o.extra ?? '',
   ].filter(Boolean).join('\n\n');
