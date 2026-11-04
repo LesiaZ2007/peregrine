@@ -1,16 +1,18 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useStored } from '@/lib/store';
+import { DEFAULT_SPEC } from '@/lib/spec';
+import { K, useStored } from '@/lib/store';
 import type { SearchSpec } from '@/lib/types';
 import MiniMarkdown from './MiniMarkdown';
 
-interface Msg { role: 'user' | 'assistant'; content: string; patch?: Partial<SearchSpec> | null }
+interface Msg { role: 'user' | 'assistant'; content: string; patch?: Partial<SearchSpec> | null; used?: string[] }
 const EMPTY: Msg[] = [];
 
 /** Floating assistant. `context` is rebuilt by each page from what's on screen. */
 export default function ChatDock({ context, prompts, onApply }: { context: () => string; prompts: string[]; onApply?: (patch: Partial<SearchSpec>) => void }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useStored<Msg[]>('pg:chat', EMPTY);
+  const [spec] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
@@ -28,10 +30,10 @@ export default function ChatDock({ context, prompts, onApply }: { context: () =>
       const r = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: next.map(({ role, content: c }) => ({ role, content: c })), context: context() }),
+        body: JSON.stringify({ messages: next.map(({ role, content: c }) => ({ role, content: c })), context: context(), spec }),
       });
       const j = await r.json();
-      setMsgs([...next, { role: 'assistant', content: r.ok ? j.reply || '(no answer)' : j.message ?? 'Something went wrong.', patch: r.ok ? j.patch : null }]);
+      setMsgs([...next, { role: 'assistant', content: r.ok ? j.reply || '(no answer)' : j.message ?? 'Something went wrong.', patch: r.ok ? j.patch : null, used: r.ok ? j.used : undefined }]);
     } catch {
       setMsgs([...next, { role: 'assistant', content: 'Could not reach the assistant.' }]);
     } finally {
@@ -66,6 +68,7 @@ export default function ChatDock({ context, prompts, onApply }: { context: () =>
         )}
         {msgs.map((m, i) => (
           <div key={i} className={`chat-msg ${m.role}`}>
+            {m.used?.length ? <div className="chat-used">{m.used.join(' · ')}</div> : null}
             {m.role === 'assistant' ? <MiniMarkdown text={m.content} /> : <p>{m.content}</p>}
             {m.patch && (
               <div className="chat-patch">
@@ -79,7 +82,7 @@ export default function ChatDock({ context, prompts, onApply }: { context: () =>
             )}
           </div>
         ))}
-        {busy && <div className="chat-msg assistant muted">Thinking…</div>}
+        {busy && <div className="chat-msg assistant muted">Looking things up…</div>}
         <div ref={end} />
       </div>
       <form className="chat-in" onSubmit={(e) => { e.preventDefault(); ask(q); }}>

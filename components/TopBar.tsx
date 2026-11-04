@@ -48,7 +48,7 @@ export default function TopBar() {
         <label className="cur-switch" title="Show prices in (approximate rates)">
           <span className="vh">Currency</span>
           <select value={cur} onChange={(e) => setSpec((s) => ({ ...normalizeSpec(s), currency: e.target.value as Currency }))}>
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c} · {CURRENCY_NAME[c]}</option>)}
+            {CURRENCIES.map((c) => <option key={c} value={c} title={CURRENCY_NAME[c]}>{c}</option>)}
           </select>
         </label>
         <button className="btn small ghost" onClick={() => setTheme(NEXT[theme])} title="Switch day / night chart">

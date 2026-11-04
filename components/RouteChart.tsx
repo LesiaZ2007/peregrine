@@ -149,7 +149,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
   const pin = (x: number, y: number) => `translate(${x},${y}) scale(${1 / view.k})`;
   const guard = (fn: () => void) => () => { if (suppressClick.current) { suppressClick.current = false; return; } fn(); };
 
-  const shown = trips.slice(0, 40);
+  const shown = trips.slice(0, 60);
   const { path, project, extent } = useMemo(() => {
     const pts: [number, number][] = [
       ...origins.map((o) => [o.lon, o.lat] as [number, number]),
@@ -220,13 +220,13 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
   const labelled = useMemo(() => {
     const boxes: [number, number, number, number][] = origins.map((o) => {
       const [x, y] = project(o.lon, o.lat);
-      return [x - 12, y - 24, x + 14 + o.label.length * 10, y + 12];
+      return [x - 9, y - 18, x + 12 + o.label.length * 8, y + 9];
     });
     const keep = new Set<string>();
-    for (const t of shown.slice(0, 16)) {
-      if (keep.size >= 10) break;
+    for (const t of shown.slice(0, 60)) {
+      if (keep.size >= 35) break;
       const [x, y] = project(t.dest.lon, t.dest.lat);
-      const box: [number, number, number, number] = [x - 5, y - 11, x + 32 + t.dest.name.length * 8.3, y + 9];
+      const box: [number, number, number, number] = [x - 4, y - 8, x + 24 + t.dest.name.length * 6, y + 6];
       if (boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
       boxes.push(box);
       keep.add(t.key);
@@ -271,7 +271,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
                 <g transform={pin(x, y)}>
                   <circle r={isHot ? 4.5 : 3} fill="var(--paper-3)" stroke="var(--rule-2)" strokeWidth={1.4} />
                   {isHot && (
-                    <text x={10} y={4} style={{ font: '600 14.5px var(--f-sans)', fill: 'var(--ink-2)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
+                    <text x={10} y={4} style={{ font: '600 11.5px var(--f-sans)', fill: 'var(--ink-2)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 3 }}>
                       {t.dest.name} · {t.flags.includes('hidden') ? 'hidden' : 'just outside'}
                     </text>
                   )}
@@ -307,8 +307,8 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
               >
                 <circle r={isHot ? 5.5 : 3.8} fill="var(--paper-2)" stroke={`var(--m-${t.best.mode})`} strokeWidth={isHot ? 2.6 : 2} />
                 {showLabel && (
-                  <text x={8} y={5} className="chart-label" style={{ font: `${isHot ? 700 : 600} ${isHot ? 16.5 : 14}px var(--f-sans)`, fill: 'var(--ink)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4, strokeLinejoin: 'round' }}>
-                    <tspan style={{ fontFamily: 'var(--f-mono)', fill: 'var(--accent)', fontSize: 12 }}>{String(i + 1).padStart(2, '0')} </tspan>
+                  <text x={6} y={4} className="chart-label" style={{ font: `${isHot ? 700 : 600} ${isHot ? 12.5 : 10.5}px var(--f-sans)`, fill: 'var(--ink)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                    <tspan style={{ fontFamily: 'var(--f-mono)', fill: 'var(--accent)', fontSize: 8.5 }}>{String(i + 1).padStart(2, '0')} </tspan>
                     {t.dest.name}
                   </text>
                 )}
@@ -323,7 +323,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
               <g key={o.label} transform={pin(x, y)}>
                 <path d="M0 -8.5 7.4 -4.25 7.4 4.25 0 8.5 -7.4 4.25 -7.4 -4.25Z" fill="var(--ink)" stroke="var(--paper-2)" strokeWidth="2" />
                 <circle r="2.3" fill="var(--paper-2)" />
-                <text x={14} y={-8} style={{ font: '800 15.5px var(--f-sans)', fontStretch: '115%', textTransform: 'uppercase', letterSpacing: '0.06em', fill: 'var(--ink)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
+                <text x={11} y={-6} style={{ font: '800 12px var(--f-sans)', fontStretch: '115%', textTransform: 'uppercase', letterSpacing: '0.06em', fill: 'var(--ink)', paintOrder: 'stroke', stroke: 'var(--sea)', strokeWidth: 4 }}>
                   {o.label}
                 </text>
               </g>

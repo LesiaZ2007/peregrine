@@ -437,7 +437,7 @@ function searchCore(spec: SearchSpec, input: SearchInput): SearchResult {
           }
         }
         // islands: fly to a nearby mainland gateway with a real fare, then the ferry
-        if (spec.modes.flight && spec.modes.ferry && !flightFare) {
+        if (spec.modes.flight && spec.modes.ferry && !flightFare && dest.land !== originLand) {
           let bestFF: Option | null = null;
           for (const g of DESTINATIONS) {
             if (g.land === dest.land || !g.airports.length || ferryHours(g.land, dest.land) === null) continue;

@@ -92,11 +92,47 @@
   .place-hero { grid-template-columns: 1fr; }
   .place-hero-img { min-height: 200px; border-right: 0; border-bottom: 1px solid var(--ink); }
 }
+/* chat: charts, tables, what it looked up */
+.mini-chart { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--ink); background: var(--paper); }
+.mini-chart figcaption { font-stretch: 85%; font-weight: 750; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.72rem; margin-bottom: 4px; }
+.mini-chart svg { display: block; width: 100%; height: auto; }
+.mini-chart .mc-label { font: 500 11px var(--f-sans); fill: var(--ink-2); }
+.mini-chart .mc-value { font: 600 10.5px var(--f-mono); fill: var(--ink); }
+.mc-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 0.72rem; color: var(--ink-2); }
+.mc-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; }
+.md-table { overflow-x: auto; margin: 6px 0; }
+.md-table table { border-collapse: collapse; font-size: 0.8rem; width: 100%; }
+.md-table th { text-align: left; font-stretch: 80%; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; border-bottom: 1px solid var(--ink); padding: 3px 6px; }
+.md-table td { border-bottom: 1px solid var(--rule); padding: 4px 6px; white-space: nowrap; }
+.chat-msg pre { font-family: var(--f-mono); font-size: 0.72rem; white-space: pre-wrap; margin: 4px 0; }
+.chat-used { font-family: var(--f-mono); font-size: 0.68rem; color: var(--accent); margin-bottom: 4px; }
+.chat-used::before { content: '⌕ '; }
+.chat-msg.assistant { max-width: 100%; }
+.chat-log { grid-template-columns: minmax(0, 1fr); overflow-x: hidden; }
+.chat-msg { min-width: 0; }
+.chat-msg.user { max-width: 85%; }
+.md-table { max-width: 100%; }
+.md-table td { white-space: normal; }
+/* other-ways chips wrap inside their column */
+.slip .how { min-width: 0; }
+.other-ways { min-width: 0; }
+.way-chip { white-space: normal; flex-wrap: wrap; row-gap: 0; max-width: 100%; }
+.way-chip i { display: none; }
+
+/* scroll bars: thin, chart-ruled */
+* { scrollbar-width: thin; scrollbar-color: var(--rule-2) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--rule-2); border: 3px solid var(--paper); border-radius: 6px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+*::-webkit-scrollbar-corner { background: transparent; }
+html { scrollbar-color: var(--rule-2) var(--paper); }
+
 /* currency switcher in the top bar */
 .cur-switch select {
   appearance: none; min-height: 32px; padding: 0 26px 0 10px; border: 1px solid var(--ink); border-radius: var(--radius);
   background: var(--paper-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2366707b' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 8px center / 10px 6px;
-  font-family: var(--f-mono); font-size: 0.8rem; font-weight: 600; cursor: pointer; max-width: 110px;
+  font-family: var(--f-mono); font-size: 0.8rem; font-weight: 600; cursor: pointer;
 }
 @media (max-width: 560px) { .cur-switch select { max-width: 76px; } }
 

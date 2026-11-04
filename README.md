@@ -19,7 +19,8 @@ Find cheap, interesting trips from wherever you are — by train, coach, plane, 
 - **Stars, compare, season plan.** Star places, compare up to four side by side, and lay out your upcoming weekends with a real price check for each.
 - **Look up a place.** Search any of the ~320 places for every way there from your home base (limits off, so nothing's hidden), prices across your dates for each way, typical fares, what a day costs at each stay level, and links to Booking.com, Hostelworld, Airbnb and Google Hotels.
 - **Your own limits per mode.** The longest stretch you'll do by coach, train, ferry and so on, checked leg by leg. Ways that break a limit stay visible with the reason.
-- **Ask Peregrine.** A chat assistant that reads what's on screen, compares options and can suggest settings.
+- **Ask Peregrine.** A chat assistant that reads what's on screen, looks up any place or runs a fresh search itself when it needs to, answers with tables and bar charts, and can suggest settings to apply.
+- **Price confidence.** Every price has a five-bar meter, from a real fare for your dates down to a rough guess, with the reason.
 - **Keep things.** Wishlist, been-there places and countries, saved setups, share links, and export (backup/import .json, .csv, calendar .ics). Everything stays in the browser.
 
 ## Prices: real or estimated, always labelled
