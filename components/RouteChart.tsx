@@ -9,7 +9,7 @@ import type { HomeBase, Mode, Trip } from '@/lib/types';
 import { MODE_LABEL, RouteSample, routeStyle } from './icons';
 
 const W = 1000;
-const H = 560;
+const H0 = 560;
 
 let atlasPromise: Promise<{ land: FeatureCollection | Feature; borders: MultiLineString }> | null = null;
 function loadAtlas() {
@@ -35,6 +35,12 @@ interface Props {
   setHot: (k: string | null) => void;
   open: (t: Trip) => void;
   title: string;
+  /** phone layout: the map fills its box (portrait), markers scale up to stay legible */
+  fill?: boolean;
+  /** screen px at the bottom covered by something (a card strip), kept clear of places */
+  padBottom?: number;
+  /** tap on a place; defaults to `open` */
+  pick?: (t: Trip) => void;
 }
 
 type SegMode = Mode | 'local';
@@ -60,7 +66,8 @@ function Stroke({ seg, hot }: { seg: Seg; hot: boolean }) {
   );
 }
 
-export default function RouteChart({ origins, trips, near = [], shapes = {}, hot, setHot, open, title }: Props) {
+export default function RouteChart({ origins, trips, near = [], shapes = {}, hot, setHot, open, title, fill = false, padBottom = 0, pick }: Props) {
+  const tap = pick ?? open;
   const [atlas, setAtlas] = useState<Awaited<ReturnType<typeof loadAtlas>> | null>(null);
   useEffect(() => {
     let live = true;
@@ -70,6 +77,26 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
 
   // ── pan & zoom: a transform on the map group; strokes and markers keep their size ──
   const svgRef = useRef<SVGSVGElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  // in fill mode the chart takes the shape of its box; px = width of the box in screen px
+  const [box, setBox] = useState({ H: H0, px: W });
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el || !fill) return;
+    const ro = new ResizeObserver(([e]) => {
+      const { width, height } = e.contentRect;
+      if (width < 50 || height < 50) return;
+      setBox((b) => {
+        const H = Math.round((W * height) / width);
+        return Math.abs(H - b.H) < 3 && Math.abs(width - b.px) < 3 ? b : { H, px: width };
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fill]);
+  const H = fill ? box.H : H0;
+  /** chart units per screen px on phones, so dots and labels keep a readable size */
+  const s = fill ? Math.max(1, W / box.px) : 1;
   const [view, setView] = useState({ k: 1, x: 0, y: 0 });
   const drag = useRef<{ id: number; sx: number; sy: number; vx: number; vy: number; moved: boolean } | null>(null);
   const pinch = useRef<Map<number, { x: number; y: number }>>(new Map());
@@ -79,7 +106,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
     const r = svgRef.current?.getBoundingClientRect();
     if (!r) return { x: 0, y: 0 };
     return { x: ((cx - r.left) / r.width) * W, y: ((cy - r.top) / r.height) * H };
-  }, []);
+  }, [H]);
   const zoomAt = useCallback((px: number, py: number, factor: number) => {
     setView((v) => {
       const k = Math.min(24, Math.max(1, v.k * factor));
@@ -146,7 +173,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
     drag.current = null;
   };
   /** marker transform that cancels the zoom so dots and labels stay the same size */
-  const pin = (x: number, y: number) => `translate(${x},${y}) scale(${1 / view.k})`;
+  const pin = (x: number, y: number) => `translate(${x},${y}) scale(${s / view.k})`;
   const guard = (fn: () => void) => () => { if (suppressClick.current) { suppressClick.current = false; return; } fn(); };
 
   const shown = trips.slice(0, 60);
@@ -165,17 +192,18 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
     const lonC = (Math.min(...lons) + Math.max(...lons)) / 2;
     const p1 = lat0 + (lat1 - lat0) / 6;
     const p2 = lat1 - (lat1 - lat0) / 6;
+    const pad = fill ? 24 * s : 60;
     const proj = geoConicConformal()
       .rotate([-lonC, 0])
       .parallels([p1 === p2 ? p1 - 1 : p1, p1 === p2 ? p2 + 1 : p2])
-      .fitExtent([[60, 60], [W - 60, H - 60]], { type: 'MultiPoint', coordinates: pts });
+      .fitExtent([[pad, pad + (fill ? 40 * s : 0)], [W - pad - (fill ? 50 * s : 0), H - pad - padBottom * s]], { type: 'MultiPoint', coordinates: pts });
     return {
       path: geoPath(proj),
       project: (lon: number, lat: number) => proj([lon, lat]) ?? [0, 0],
       extent: { lat0, lat1 },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origins, trips, near]);
+  }, [origins, trips, near, H, s, fill, padBottom]);
 
   const grat = useMemo(() => path(geoGraticule10()) ?? '', [path]);
   const line = (coords: [number, number][]) => path({ type: 'LineString', coordinates: coords }) ?? '';
@@ -220,23 +248,23 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
   const labelled = useMemo(() => {
     const boxes: [number, number, number, number][] = origins.map((o) => {
       const [x, y] = project(o.lon, o.lat);
-      return [x - 9, y - 18, x + 12 + o.label.length * 8, y + 9];
+      return [x - 9 * s, y - 18 * s, x + (12 + o.label.length * 8) * s, y + 9 * s];
     });
     const keep = new Set<string>();
     for (const t of shown.slice(0, 60)) {
       if (keep.size >= 35) break;
       const [x, y] = project(t.dest.lon, t.dest.lat);
-      const box: [number, number, number, number] = [x - 4, y - 8, x + 24 + t.dest.name.length * 6, y + 6];
+      const box: [number, number, number, number] = [x - 4 * s, y - 8 * s, x + (24 + t.dest.name.length * 6) * s, y + 6 * s];
       if (boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
       boxes.push(box);
       keep.add(t.key);
     }
     return keep;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, trips, origins]);
+  }, [project, trips, origins, s]);
 
   return (
-    <div className="chart-frame">
+    <div className="chart-frame" ref={frameRef} data-fill={fill}>
       <svg
         ref={svgRef}
         className="chart"
@@ -266,7 +294,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
             const isHot = hot === t.key;
             return (
               <g key={`n-${t.key}`} opacity={isHot ? 0.95 : 0.4} style={{ cursor: 'pointer' }}
-                onMouseEnter={() => setHot(t.key)} onMouseLeave={() => setHot(null)} onClick={guard(() => open(t))}>
+                onMouseEnter={() => setHot(t.key)} onMouseLeave={() => setHot(null)} onClick={guard(() => tap(t))}>
                 <path d={d} fill="none" stroke="var(--rule-2)" strokeWidth={isHot ? 2 : 1.2} strokeDasharray="3 4" />
                 <g transform={pin(x, y)}>
                   <circle r={isHot ? 4.5 : 3} fill="var(--paper-3)" stroke="var(--rule-2)" strokeWidth={1.4} />
@@ -295,7 +323,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
           {shown.map((t, i) => {
             const [x, y] = project(t.dest.lon, t.dest.lat);
             const isHot = hot === t.key;
-            const showLabel = labelled.has(t.key) || isHot || view.k >= 2.5;
+            const showLabel = labelled.has(t.key) || isHot || view.k >= 2.5 * s;
             return (
               <g
                 key={t.key}
@@ -303,7 +331,7 @@ export default function RouteChart({ origins, trips, near = [], shapes = {}, hot
                 style={{ cursor: 'pointer' }}
                 onMouseEnter={() => setHot(t.key)}
                 onMouseLeave={() => setHot(null)}
-                onClick={guard(() => open(t))}
+                onClick={guard(() => tap(t))}
               >
                 <circle r={isHot ? 5.5 : 3.8} fill="var(--paper-2)" stroke={`var(--m-${t.best.mode})`} strokeWidth={isHot ? 2.6 : 2} />
                 {showLabel && (

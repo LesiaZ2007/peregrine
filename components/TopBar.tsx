@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { CURRENCIES, CURRENCY_NAME } from '@/lib/money';
 import { DEFAULT_SPEC, normalizeSpec } from '@/lib/spec';
 import { K, useStored } from '@/lib/store';
@@ -17,6 +17,16 @@ export default function TopBar() {
   const [theme, setTheme] = useStored<Theme>('pg:theme', 'auto');
   const [spec, setSpec] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
   const cur = normalizeSpec(spec).currency;
+  // phones: pages, currency and theme live behind one menu button
+  const [menu, setMenu] = useState(false);
+  const [menuPath, setMenuPath] = useState(path);
+  if (menuPath !== path) { setMenuPath(path); setMenu(false); }
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
 
   useEffect(() => {
     const el = document.documentElement;
@@ -32,11 +42,20 @@ export default function TopBar() {
     { href: '/about', label: 'How it works' },
   ];
   return (
-    <header className="bar">
+    <header className="bar" data-menu={menu}>
       <Link href="/" className="brand" aria-label="Peregrine home">
         <Mark className="brand-mark" />
         <span className="brand-word">Peregrine</span>
       </Link>
+      <span className="bar-page">{nav.find((n) => n.href === path)?.label ?? ''}</span>
+      <button type="button" className="menu-btn" aria-expanded={menu} aria-controls="bar-menu" onClick={() => setMenu((v) => !v)}>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          {menu ? <path d="M5 5l10 10M15 5 5 15" /> : <path d="M3 6h14M3 10h14M3 14h14" />}
+        </svg>
+        <span>{menu ? 'Close' : 'Menu'}</span>
+      </button>
+      {menu && <button type="button" className="bar-scrim" aria-label="Close menu" onClick={() => setMenu(false)} />}
+      <div className="bar-menu" id="bar-menu">
       <nav>
         {nav.map((n) => (
           <Link key={n.href} href={n.href} aria-current={path === n.href ? 'page' : undefined}>
@@ -54,6 +73,7 @@ export default function TopBar() {
         <button className="btn small ghost" onClick={() => setTheme(NEXT[theme])} title="Switch day / night chart">
           <ThemeGlyph theme={theme} /> <span className="theme-word">{LABEL[theme]}</span>
         </button>
+      </div>
       </div>
     </header>
   );

@@ -9,12 +9,19 @@ interface Msg { role: 'user' | 'assistant'; content: string; patch?: Partial<Sea
 const EMPTY: Msg[] = [];
 
 /** Floating assistant. `context` is rebuilt by each page from what's on screen. */
-export default function ChatDock({ context, prompts, onApply }: { context: () => string; prompts: string[]; onApply?: (patch: Partial<SearchSpec>) => void }) {
-  const [open, setOpen] = useState(false);
+export default function ChatDock({ context, prompts, onApply, open: openProp, onOpenChange }: {
+  context: () => string; prompts: string[]; onApply?: (patch: Partial<SearchSpec>) => void;
+  /** optional: let the page open and close it (the phone tab bar does) */
+  open?: boolean; onOpenChange?: (open: boolean) => void;
+}) {
+  const [openSelf, setOpenSelf] = useState(false);
+  const open = openProp ?? openSelf;
+  const setOpen = (v: boolean) => { setOpenSelf(v); onOpenChange?.(v); };
   const [msgs, setMsgs] = useStored<Msg[]>('pg:chat', EMPTY);
   const [spec] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
+  const [waiting, setWaiting] = useState(0);
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs, open, busy]);
@@ -27,12 +34,23 @@ export default function ChatDock({ context, prompts, onApply }: { context: () =>
     setQ('');
     setBusy(true);
     try {
-      const r = await fetch('/api/chat', {
+      const send = () => fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ messages: next.map(({ role, content: c }) => ({ role, content: c })), context: context(), spec }),
       });
-      const j = await r.json();
+      let r = await send();
+      let j = await r.json();
+      // the free AI plan refills every minute: wait it out once, counting down, then ask again
+      if (r.status === 429 && typeof j.retryAfter === 'number' && j.retryAfter <= 60) {
+        for (let s = Math.ceil(j.retryAfter); s > 0; s--) {
+          setWaiting(s);
+          await new Promise((ok) => setTimeout(ok, 1000));
+        }
+        setWaiting(0);
+        r = await send();
+        j = await r.json();
+      }
       setMsgs([...next, { role: 'assistant', content: r.ok ? j.reply || '(no answer)' : j.message ?? 'Something went wrong.', patch: r.ok ? j.patch : null, used: r.ok ? j.used : undefined }]);
     } catch {
       setMsgs([...next, { role: 'assistant', content: 'Could not reach the assistant.' }]);
@@ -82,7 +100,11 @@ export default function ChatDock({ context, prompts, onApply }: { context: () =>
             )}
           </div>
         ))}
-        {busy && <div className="chat-msg assistant muted">Looking things up…</div>}
+        {busy && (
+          <div className="chat-msg assistant muted">
+            {waiting > 0 ? `The free AI plan is busy for a moment. Trying again in ${waiting} s…` : 'Looking things up…'}
+          </div>
+        )}
         <div ref={end} />
       </div>
       <form className="chat-in" onSubmit={(e) => { e.preventDefault(); ask(q); }}>

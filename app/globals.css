@@ -243,7 +243,6 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
   display: grid; grid-template-columns: var(--side) minmax(0, 1fr); min-height: calc(100dvh - 54px);
 }
 .planner > * { min-width: 0; }
-.jump { display: none; }
 .plan {
   border-right: 1px solid var(--ink);
   background: var(--paper);
@@ -410,8 +409,6 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 /* ── responsive ───────────────────────────────────── */
 @media (max-width: 980px) {
   .planner { grid-template-columns: minmax(0, 1fr); }
-  .planner:has(.slip) .results { order: -1; }
-  .planner:has(.slip) .jump { display: inline-flex; }
   .plan { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--ink); }
   .results { padding: 16px; }
   .slip { grid-template-columns: 34px minmax(0, 1fr) auto; }

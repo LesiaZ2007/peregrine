@@ -79,6 +79,10 @@ export default function TripSheet({ trip: t, spec, close, starred, onStar, compa
     <>
       <div className="scrim" onClick={close} />
       <aside className="sheet" role="dialog" aria-modal="true" aria-label={t.dest.name} tabIndex={-1} ref={ref}>
+        <div className="sheet-bar">
+          <b>{t.dest.name}</b>
+          <button className="btn small" onClick={close}>Close</button>
+        </div>
         <Photo dest={t.dest} w={960} className="sheet-photo" credit />
         {t.nearMiss?.length ? <div className="near-banner">Just outside your settings: {t.nearMiss.join(' · ')}</div> : null}
         <div className="sheet-head">
