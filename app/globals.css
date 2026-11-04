@@ -92,11 +92,11 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; font-size: 112.5%; }
+html { -webkit-text-size-adjust: 100%; font-size: 106.25%; }
 body {
   margin: 0;
   font-family: var(--f-sans);
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.45;
   color: var(--ink);
   background-color: var(--paper);
