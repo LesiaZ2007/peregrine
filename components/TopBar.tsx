@@ -52,7 +52,7 @@ export default function TopBar() {
           </select>
         </label>
         <button className="btn small ghost" onClick={() => setTheme(NEXT[theme])} title="Switch day / night chart">
-          <ThemeGlyph theme={theme} /> {LABEL[theme]}
+          <ThemeGlyph theme={theme} /> <span className="theme-word">{LABEL[theme]}</span>
         </button>
       </div>
     </header>
