@@ -1,26 +1,38 @@
 {
   "name": "peregrine",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "next start -p 3001",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run test && npm run build",
+    "data:airports": "node scripts/build-airports.mjs",
+    "data:images": "node scripts/build-images.mjs"
   },
   "dependencies": {
-    "amadeus": "^11.0.0",
-    "groq-sdk": "^1.2.0",
-    "lucide-react": "^1.16.0",
-    "next": "16.2.6",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "recharts": "^3.8.1"
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "d3-geo": "^3.1.1",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "server-only": "^0.0.1",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@types/d3-geo": "^3.1.0",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/topojson-client": "^3.1.5",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
-    "tailwindcss": "^4"
+    "eslint-config-next": "16.4.5",
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   }
 }

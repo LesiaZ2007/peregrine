@@ -1,0 +1,123 @@
+'use client';
+import { bearingName } from '@/lib/geo';
+import { duration, money } from '@/lib/money';
+import type { Currency, Trip } from '@/lib/types';
+import { ModeChain, Sure } from './icons';
+import Photo from './Photo';
+
+interface Props {
+  trip: Trip;
+  rank: number;
+  cur: Currency;
+  hot: boolean;
+  setHot: (k: string | null) => void;
+  open: () => void;
+  starred: boolean;
+  onStar: () => void;
+  compared: boolean;
+  onCompare: () => void;
+}
+
+export function Star({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button type="button" className="star" aria-pressed={on} aria-label={on ? `Unstar ${label}` : `Star ${label}`} title={on ? 'Starred' : 'Star'} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M10 1.8 12.5 7l5.7.6-4.3 3.9 1.2 5.6L10 14.2l-5.1 2.9 1.2-5.6L1.8 7.6 7.5 7Z" />
+      </svg>
+    </button>
+  );
+}
+
+export default function TripSlip({ trip: t, rank, cur, hot, setHot, open, starred, onStar, compared, onCompare }: Props) {
+  const b = t.best;
+  const others = t.options.slice(1, 4);
+  const near = !!t.nearMiss?.length;
+  return (
+    <div
+      className="slip"
+      data-mode={b.mode}
+      data-hot={hot}
+      data-near={near}
+      role="button"
+      tabIndex={0}
+      onMouseEnter={() => setHot(t.key)}
+      onMouseLeave={() => setHot(null)}
+      onFocus={() => setHot(t.key)}
+      onClick={open}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
+      aria-label={`${t.dest.name}, ${money(b.price, cur)} by ${b.mode}`}
+    >
+      <span className="rank">{near ? '—' : String(rank).padStart(2, '0')}</span>
+      <span className="place has-photo">
+        <Photo dest={t.dest} w={250} className="slip-photo" />
+        <span className="place-text">
+        <b>
+          {t.dest.name}
+          {t.flags.includes('wish') && <span className="flag">wishlist</span>}
+          {t.flags.includes('been') && <span className="flag">been</span>}
+          {t.flags.includes('new') && <span className="flag">new find</span>}
+          {t.flags.includes('hidden') && <span className="flag">hidden</span>}
+        </b>
+        <span>
+          {t.dest.country} · <span className="mono">{t.distanceKm.toLocaleString('en-GB')} km {bearingName(t.originLat, t.originLon, t.dest.lat, t.dest.lon)}</span>
+        </span>
+        {near ? (
+          <span className="why near-why">{t.flags.includes('hidden') ? 'Hidden by you' : `Just outside: ${t.nearMiss!.join(' · ')}`}</span>
+        ) : (
+          t.reasons.length > 0 && <span className="why">{t.reasons.slice(0, 3).join(' · ')}</span>
+        )}
+        </span>
+      </span>
+      <span className="how">
+        <span className="row" style={{ gap: 8 }}>
+          <ModeChain option={b} />
+          <span className="mono">{duration(b.outMin)}{b.transfers ? ` · ${b.transfers} chg` : ''}</span>
+        </span>
+        {(others.length > 0 || (t.blocked?.length ?? 0) > 0) && (
+          <span className="other-ways" aria-label="Other ways there">
+            {others.map((o, i) => (
+              <span key={i} className="way-chip" data-mode={o.mode} title={o.note}>
+                <ModeChain option={o} compact />
+                <b>{money(o.price + (o.extraEst ?? 0), cur)}</b>
+                <span>{duration(o.outMin)}</span>
+                <i className={o.source === 'live' ? 'live' : ''}>{o.source === 'live' ? (o.extraEst ? 'live+est.' : 'live') : 'est.'}</i>
+                <Sure sure={o.sure} />
+              </span>
+            ))}
+            {(t.blocked?.length ?? 0) > 0 && (
+              <span className="way-chip more" title={t.blocked!.map((b) => `${b.option.mode}: ${b.why}`).join('\n')}>
+                +{t.blocked!.length} outside your limits
+              </span>
+            )}
+          </span>
+        )}
+        {t.flightHint?.cheaperLikely && <span className="hint-chip">other airlines may be cheaper</span>}
+      </span>
+      <span className="when">
+        <span>{t.window.label}</span>
+        <span className="mono">{t.hoursThere} h there{t.window.nights ? ` · ${t.window.nights} nt` : ''}</span>
+      </span>
+      <span className="price">
+        <span className="big">{money(b.price + (b.extraEst ?? 0), cur)}</span>
+        <span>
+          <span className={`stamp ${b.source === 'live' ? 'live' : 'est'}`}>{b.source === 'live' ? (b.extraEst ? 'live+est.' : 'live') : 'est.'}</span>
+          <Sure sure={b.sure} />
+        </span>
+        <small title="travel + beds, food, getting around and sights">+ {money(t.stayCost, cur)} stay & food</small>
+        <small className="all-in"><i>all in</i>{money(t.total, cur)}</small>
+      </span>
+      <span className="slip-acts">
+        <Star on={starred} onClick={onStar} label={t.dest.name} />
+        <button
+          type="button"
+          className="cmp"
+          aria-pressed={compared}
+          title={compared ? 'In compare' : 'Add to compare'}
+          onClick={(e) => { e.stopPropagation(); onCompare(); }}
+        >
+          {compared ? '✓ cmp' : '+ cmp'}
+        </button>
+      </span>
+    </div>
+  );
+}
