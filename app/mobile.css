@@ -1,0 +1,191 @@
+/* ── phones & small tablets ───────────────────────────
+   One thing at a time: Search, a full-screen Map, or the List,
+   switched from a tab bar at the bottom (thumb reach).
+   Desktop keeps the side-by-side planner; the pieces below are hidden there. */
+
+.m-tabs, .m-summary, .map-strip, .menu-btn, .bar-page, .bar-scrim, .sheet-bar { display: none; }
+.bar-menu { display: contents; }
+.pane-map { position: relative; }
+.pane-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; min-width: 0; }
+
+/* ── top bar: brand + menu on phones ──────────────── */
+@media (max-width: 760px) {
+  :root { --bar-h: 52px; }
+  .bar { height: var(--bar-h); padding: 0 8px 0 14px; gap: 10px; }
+  .brand-word { display: inline; font-size: 1rem; }
+  .bar-page {
+    display: block; padding-left: 10px; border-left: 1px solid var(--rule-2);
+    font-stretch: 75%; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; color: var(--ink-3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  }
+  .menu-btn {
+    display: inline-flex; align-items: center; gap: 6px; margin-left: auto; min-height: 40px; padding: 0 12px;
+    border: 1px solid var(--ink); border-radius: var(--radius); background: transparent; cursor: pointer;
+    font-stretch: 80%; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.78rem;
+  }
+  .menu-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+  .menu-btn[aria-expanded='true'] { background: var(--ink); color: var(--on-ink); }
+
+  .bar-menu { display: none; }
+  .bar[data-menu='true'] .bar-menu {
+    display: grid; gap: 14px; position: absolute; left: 0; right: 0; top: 100%; z-index: 31;
+    padding: 10px 14px 16px; background: var(--paper); border-bottom: 1px solid var(--ink);
+    box-shadow: 0 3px 0 -2px var(--ink);
+  }
+  .bar[data-menu='true'] .bar-menu nav { display: grid; gap: 0; margin: 0; overflow: visible; }
+  .bar[data-menu='true'] .bar-menu nav a {
+    padding: 13px 4px; font-size: 0.95rem; border-bottom: 1px solid var(--rule); border-radius: 0; color: var(--ink);
+  }
+  .bar[data-menu='true'] .bar-menu nav a[aria-current='page'] { box-shadow: inset 4px 0 0 var(--accent); padding-left: 14px; }
+  .bar[data-menu='true'] .bar-right { margin: 0; justify-content: space-between; }
+  .bar[data-menu='true'] .cur-switch select { max-width: none; min-height: 40px; }
+  .bar[data-menu='true'] .theme-word { display: inline; }
+  .bar-scrim { display: block; position: fixed; inset: var(--bar-h) 0 0 0; z-index: 29; border: 0; padding: 0; background: rgba(10, 16, 23, 0.35); cursor: default; }
+}
+
+/* ── planner views ────────────────────────────────── */
+@media (max-width: 980px) {
+  :root { --bar-h: 54px; --tabs-h: calc(60px + env(safe-area-inset-bottom)); }
+  .planner { display: block; min-height: 0; padding-bottom: var(--tabs-h); }
+
+  .planner[data-view='search'] .results { display: none; }
+  .planner:not([data-view='search']) .plan { display: none; }
+  .planner[data-view='list'] .pane-map { display: none; }
+  .planner[data-view='map'] .pane-list { display: none; }
+
+  /* search: compact header, presets as a sideways row, Plot button above the tabs */
+  .plan { border-bottom: 0; }
+  .plan-head { padding: 16px 16px 10px; border-bottom: 0; }
+  .plan-head h1 { font-size: 1.3rem; }
+  .plan-head p { font-size: 0.86rem; }
+  .presets {
+    display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 14px; scroll-snap-type: x proximity;
+    scrollbar-width: none; overscroll-behavior-x: contain;
+  }
+  .presets::-webkit-scrollbar { display: none; }
+  .preset { flex: none; width: 150px; scroll-snap-align: start; padding: 8px 10px; }
+  .sec > summary { padding: 14px 16px; }
+  .sec-body { padding: 4px 16px 18px; }
+  .sec-sum { max-width: 46vw; }
+  .go { bottom: var(--tabs-h); padding: 10px 16px; z-index: 5; }
+  .go .btn.primary { min-height: 48px; }
+
+  /* map: the whole screen between the bars */
+  .planner[data-view='map'] .results {
+    position: fixed; top: var(--bar-h); left: 0; right: 0; bottom: var(--tabs-h); padding: 0; display: block;
+  }
+  .planner[data-view='map'] .pane-map { height: 100%; }
+  .chart-frame[data-fill='true'] { height: 100%; border: 0; }
+  .chart-frame[data-fill='true']::after { inset: 6px; }
+  .chart-frame[data-fill='true'] svg.chart { height: 100%; }
+  .chart-frame[data-fill='true'] .chart-zoom { left: auto; right: 12px; top: 56px; }
+  .chart-frame[data-fill='true'] .chart-zoom button { width: 40px; height: 40px; }
+  .chart-frame[data-fill='true'] .chart-title { left: 12px; right: 12px; top: 10px; text-align: left; padding: 6px 10px; }
+  .chart-frame[data-fill='true'] .chart-title b { font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .map-loading { position: absolute; left: 0; right: 0; top: 0; z-index: 3; }
+
+  .map-strip {
+    display: flex; gap: 10px; position: absolute; left: 0; right: 0; bottom: 12px; z-index: 3;
+    padding: 0 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
+  }
+  .map-strip::-webkit-scrollbar { display: none; }
+  .map-card {
+    flex: none; width: min(300px, calc(100vw - 56px)); scroll-snap-align: center;
+    display: grid; gap: 6px; padding: 10px 12px 10px 14px; text-align: left; cursor: pointer; position: relative;
+    background: var(--paper-2); border: 1px solid var(--ink); border-radius: var(--radius);
+  }
+  .map-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--m); }
+  .map-card[data-hot='true'] { box-shadow: 4px 4px 0 var(--ink); }
+  .mc-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+  .mc-top b { font-stretch: 112%; font-weight: 780; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-rank { font-size: 0.75rem; color: var(--ink-3); }
+  .mc-price { font-weight: 600; font-size: 1.1rem; }
+  .mc-mid { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.8rem; color: var(--ink-2); }
+  .mc-bot { display: flex; justify-content: space-between; gap: 8px; font-size: 0.78rem; color: var(--ink-3); }
+  .mc-bot .mono { color: var(--ink); }
+
+  /* list: a summary with Edit at the top, sort chips scroll sideways */
+  .results { padding: 0 16px 24px; gap: 0; }
+  .pane-list { gap: 14px; }
+  .m-summary {
+    display: flex; align-items: center; gap: 12px; position: sticky; top: var(--bar-h); z-index: 6;
+    margin: 0 -16px; padding: 10px 16px; background: var(--paper); border-bottom: 1px solid var(--ink);
+  }
+  .m-summary > div { display: grid; min-width: 0; flex: 1; }
+  .m-summary b { font-stretch: 105%; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-summary .mono { font-size: 0.74rem; color: var(--ink-3); }
+  .m-summary .btn { flex: none; min-height: 36px; }
+  .res-head h2 { font-size: 1.3rem; }
+  .sortbar {
+    flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 2px; scrollbar-width: none;
+  }
+  .sortbar::-webkit-scrollbar { display: none; }
+  .sortbar .tag { flex: none; padding: 7px 10px; }
+  .near-head { flex-wrap: wrap; }
+
+  /* tab bar */
+  .m-tabs {
+    display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    height: var(--tabs-h); padding-bottom: env(safe-area-inset-bottom);
+    background: var(--paper); border-top: 1px solid var(--ink); box-shadow: 0 -3px 0 -2px var(--ink);
+  }
+  .m-tabs button {
+    display: grid; justify-items: center; align-content: center; gap: 3px; border: 0; background: transparent; cursor: pointer;
+    font-stretch: 78%; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.7rem; color: var(--ink-3);
+    position: relative;
+  }
+  .m-tabs svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+  .m-tabs button[aria-pressed='true'] { color: var(--ink); }
+  .m-tabs button[aria-pressed='true']::before { content: ''; position: absolute; left: 22%; right: 22%; top: -1px; height: 3px; background: var(--accent); }
+  .m-tabs button:disabled { opacity: 0.4; cursor: default; }
+  .m-tabs i { position: absolute; top: 6px; left: calc(50% + 10px); font-style: normal; font-size: 0.62rem; padding: 0 4px; background: var(--accent); color: #fff; border-radius: 2px; letter-spacing: 0; }
+
+  /* floating things sit above the tab bar; Ask lives in the tabs on the planner */
+  .planner .chat-fab { display: none; }
+  .planner .cmp-tray { bottom: calc(var(--tabs-h) + 10px); }
+  .planner[data-view='map'] .cmp-tray { bottom: calc(var(--tabs-h) + 150px); }
+  .planner[data-view='search'] .cmp-tray { bottom: calc(var(--tabs-h) + 80px); }
+}
+
+/* chat and the trip sheet take the whole screen on phones */
+@media (max-width: 560px) {
+  .chat { inset: 0; width: auto; height: auto; right: 0; bottom: 0; z-index: 60; box-shadow: none; border: 0; padding-bottom: env(safe-area-inset-bottom); }
+  .chat header { min-height: var(--bar-h); }
+  .chat header .muted { visibility: hidden; }
+  .sheet { width: 100%; border-left: 0; padding-bottom: env(safe-area-inset-bottom); }
+  .sheet-head .close { display: none; }
+  .sheet-bar {
+    display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 3; min-height: 52px;
+    padding: 0 12px 0 16px; background: var(--paper); border-bottom: 1px solid var(--ink);
+  }
+  .sheet-bar b { flex: 1; min-width: 0; font-stretch: 112%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-bar .btn { min-height: 38px; }
+  .sheet-photo { height: 180px; }
+  .sheet-head h2 { font-size: 1.6rem; }
+}
+
+/* ── trip slips on phones: photo + name + price on top, details full width under ── */
+@media (max-width: 980px) {
+  .res-head { display: none; }
+}
+@media (max-width: 640px) {
+  .plan-head p { display: none; }
+  .slips { margin: 0 -16px; }
+  .slip {
+    grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; padding: 14px 16px 12px 18px; align-items: start;
+  }
+  .slip .rank {
+    position: absolute; left: 18px; top: 14px; z-index: 1; padding: 0 4px; text-align: left;
+    background: var(--ink); color: var(--on-ink); font-size: 0.66rem; line-height: 1.5;
+  }
+  .slip .place { grid-column: 1; grid-row: 1; }
+  .slip .place b { font-size: 1.08rem; }
+  .slip .place .why { font-size: 0.78rem; }
+  .slip .price { grid-column: 2; grid-row: 1; }
+  .slip .how { grid-column: 1 / -1; grid-row: 2; }
+  .slip .when { grid-column: 1; grid-row: 3; align-self: center; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+  .slip-acts { grid-column: 2; grid-row: 3; display: flex; gap: 8px; align-items: center; justify-self: end; }
+  .slip .cmp { font-size: 0.72rem; padding: 6px 8px; }
+  .place.has-photo { grid-template-columns: 60px minmax(0, 1fr); gap: 10px; align-items: start; }
+  .slip-photo { width: 60px; height: 60px; }
+}

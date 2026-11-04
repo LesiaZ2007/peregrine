@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { applyPatch, decodeSpec, DEFAULT_SPEC, encodeSpec, normalizeSpec, PRESETS } from '@/lib/spec';
 import Link from 'next/link';
 import { chatContext } from '@/lib/brief';
@@ -12,8 +12,20 @@ import RouteChart, { type ShapeLeg } from './RouteChart';
 import TripSheet from './TripSheet';
 import ChatDock from './ChatDock';
 import TripSlip from './TripSlip';
+import MapStrip, { type MapStripHandle } from './MapStrip';
 
 type Res = SearchResult & { quota: { left: number; total: number } | null };
+type View = 'search' | 'map' | 'list';
+
+/** Phones and small tablets get the one-thing-at-a-time layout with a tab bar. */
+const NARROW = '(max-width: 980px)';
+function useNarrow() {
+  return useSyncExternalStore(
+    (cb) => { const m = window.matchMedia(NARROW); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb); },
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
+}
 
 export default function Planner({ catalog, countries, hasLive }: { catalog: CatalogEntry[]; countries: CountryEntry[]; hasLive: boolean }) {
   const [stored, setStored] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
@@ -34,6 +46,28 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
   const [open, setOpen] = useState<Trip | null>(null);
   const [copied, setCopied] = useState(false);
   const booted = useRef(false);
+  const narrow = useNarrow();
+  const strip = useRef<MapStripHandle>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+
+  // phone views: search form, full-screen map, or the list; the back button steps between them
+  const [view, setViewRaw] = useState<View>('search');
+  const go = useCallback((v: View) => {
+    setViewRaw(v);
+    window.scrollTo(0, 0);
+    const want = v === 'search' ? '' : `#${v}`;
+    if (window.location.hash !== want) window.history.pushState(null, '', want || window.location.pathname);
+  }, []);
+  useEffect(() => {
+    const onPop = () => {
+      setOpen(null);
+      const h = window.location.hash.slice(1);
+      setViewRaw(h === 'map' || h === 'list' ? h : 'search');
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const set = useCallback((patch: Partial<SearchSpec>) => setStored((s) => ({ ...normalizeSpec(s), ...patch })), [setStored]);
 
@@ -60,13 +94,27 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
     booted.current = true;
     const shared = new URLSearchParams(window.location.search).get('s');
     const fromLink = shared ? decodeSpec(shared) : null;
-    const first = fromLink ?? (spec.origins.length ? spec : null);
+    // read the device's settings directly: on the first render the stored value isn't hydrated yet
+    let saved: SearchSpec | null = null;
+    try {
+      const raw = localStorage.getItem(K.spec);
+      saved = raw ? normalizeSpec(JSON.parse(raw)) : null;
+    } catch { /* private mode */ }
+    const first = fromLink ?? (saved?.origins.length ? saved : null);
     if (fromLink) {
       setStored(fromLink);
       window.history.replaceState(null, '', window.location.pathname);
     }
-    if (first) setTimeout(() => run(first), 0);
-  }, [run, setStored, spec]);
+    if (first) {
+      setTimeout(() => {
+        const h = window.location.hash.slice(1);
+        const v = h === 'map' ? 'map' : 'list';
+        setViewRaw(v);
+        window.history.replaceState(null, '', `#${v}`);
+        run(first);
+      }, 0);
+    }
+  }, [run, setStored]);
 
   // sorting is instant and client-side, so it doesn't make results "stale"
   const sansSort = (x: SearchSpec) => JSON.stringify({ ...x, sort: 'score', currency: 'USD' });
@@ -114,10 +162,30 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
   }
   const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
+  // on phones the trip sheet is a screen of its own, so the back button closes it
+  const openTrip = useCallback((t: Trip) => {
+    setOpen(t);
+    if (narrow && !window.history.state?.pgSheet) window.history.pushState({ pgSheet: true }, '', window.location.href);
+  }, [narrow]);
+  const closeTrip = useCallback(() => {
+    if (window.history.state?.pgSheet) window.history.back();
+    else setOpen(null);
+  }, []);
+
+  function plot(s: SearchSpec) {
+    run(s);
+    if (narrow) go('list');
+  }
+  /** on a phone the first tap on a place lights it and brings its card up; the second opens it */
+  const pickOnMap = (t: Trip) => {
+    if (hot === t.key) openTrip(t);
+    else { setHot(t.key); strip.current?.show(t.key); }
+  };
+
   const title = spec.origins.length ? `From ${spec.origins.map((o) => o.label).join(' + ')}` : 'Peregrine';
 
   return (
-    <div className="planner">
+    <div className="planner" data-view={view}>
       <aside className="plan" aria-label="Trip settings" id="settings">
         <div className="plan-head">
           <h1>Where can I get to?</h1>
@@ -139,7 +207,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
         </div>
         <PlanForm spec={spec} set={set} catalog={catalog} countries={countries} quota={res?.quota ?? null} hasLive={hasLive} />
         <div className="go">
-          <button className="btn primary" onClick={() => run(spec)} disabled={loading || !spec.origins.length}>
+          <button className="btn primary" onClick={() => plot(spec)} disabled={loading || !spec.origins.length}>
             {loading ? 'Plotting…' : stale ? 'Re-plot routes' : 'Plot routes'}
           </button>
           <button className="btn small" onClick={savePreset} title="Save these settings as a starting point">Save setup</button>
@@ -148,7 +216,25 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
       </aside>
 
       <main className="results">
-        <RouteChart origins={spec.origins} trips={trips} near={near} shapes={shapes} hot={hot} setHot={setHot} open={setOpen} title={title} />
+        <div className="pane-map">
+          <RouteChart origins={spec.origins} trips={trips} near={near} shapes={shapes} hot={hot} setHot={setHot} open={openTrip} title={title}
+            fill={narrow} padBottom={narrow && trips.length ? 150 : 0} pick={narrow ? pickOnMap : undefined} />
+          {narrow && <MapStrip ref={strip} trips={trips} cur={cur} hot={hot} setHot={setHot} open={openTrip} />}
+          {narrow && loading && <div className="loading-bar map-loading" aria-label="Searching" />}
+        </div>
+
+        <div className="pane-list">
+        {spec.origins.length > 0 && (
+          <div className="m-summary">
+            <div>
+              <b>{title}</b>
+              <span className="mono">
+                {loading ? 'plotting routes…' : res ? `${trips.length} trips · ${res.windows.length} date${res.windows.length === 1 ? '' : 's'} · ${res.considered} places checked${stale ? ' · settings changed' : ''}` : 'not plotted yet'}
+              </span>
+            </div>
+            <button type="button" className="btn small" onClick={() => go('search')}>Edit search</button>
+          </div>
+        )}
         {loading && <div className="loading-bar" aria-label="Searching" />}
 
         {!spec.origins.length && (
@@ -162,7 +248,6 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
         {res && (
           <>
             <div className="res-head">
-              <a className="btn small jump" href="#settings">Adjust search ↓</a>
               <div>
                 <h2>{trips.length ? `${trips.length} ways out` : 'Nothing fits yet'}</h2>
                 <div className="meta">
@@ -196,7 +281,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
             )}
             <div className="slips">
               {trips.map((t, i) => (
-                <TripSlip key={t.key} trip={t} rank={i + 1} cur={cur} hot={hot === t.key} setHot={setHot} open={() => setOpen(t)}
+                <TripSlip key={t.key} trip={t} rank={i + 1} cur={cur} hot={hot === t.key} setHot={setHot} open={() => openTrip(t)}
                   starred={acts.isStarred(t)} onStar={() => acts.toggleStar(t)} compared={acts.inCompare(t)} onCompare={() => acts.toggleCompare(t)} />
               ))}
             </div>
@@ -210,7 +295,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
                 {showNear && (
                   <div className="slips">
                     {near.map((t, i) => (
-                      <TripSlip key={`n-${t.key}`} trip={t} rank={i + 1} cur={cur} hot={hot === t.key} setHot={setHot} open={() => setOpen(t)}
+                      <TripSlip key={`n-${t.key}`} trip={t} rank={i + 1} cur={cur} hot={hot === t.key} setHot={setHot} open={() => openTrip(t)}
                         starred={acts.isStarred(t)} onStar={() => acts.toggleStar(t)} compared={acts.inCompare(t)} onCompare={() => acts.toggleCompare(t)} />
                     ))}
                   </div>
@@ -219,13 +304,33 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
             )}
           </>
         )}
+        </div>
       </main>
+
+      <nav className="m-tabs" aria-label="Planner views">
+        <button type="button" aria-pressed={view === 'search'} onClick={() => go('search')}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h9M15 5h2M3 10h3M9 10h8M3 15h7M13 15h4" /><circle cx="13.5" cy="5" r="1.6" /><circle cx="7.5" cy="10" r="1.6" /><circle cx="11.5" cy="15" r="1.6" /></svg>
+          Search
+        </button>
+        <button type="button" aria-pressed={view === 'map'} onClick={() => go('map')} disabled={!res && !loading}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5 7.5 3l5 2 5-2v12l-5 2-5-2-5 2Z M7.5 3v12M12.5 5v12" /></svg>
+          Map
+        </button>
+        <button type="button" aria-pressed={view === 'list'} onClick={() => go('list')} disabled={!res && !loading}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
+          List{res && !loading ? <i className="mono">{trips.length}</i> : null}
+        </button>
+        <button type="button" aria-pressed={chatOpen} onClick={() => setChatOpen((v) => !v)}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14v9H8l-4 3v-3H3Z" /></svg>
+          Ask
+        </button>
+      </nav>
 
       {open && (
         <TripSheet
           trip={open}
           spec={spec}
-          close={() => setOpen(null)}
+          close={closeTrip}
           starred={acts.isStarred(open)}
           onStar={() => acts.toggleStar(open)}
           compared={acts.inCompare(open)}
@@ -239,7 +344,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
             const isHidden = spec.exclude.includes(open.dest.id);
             const next = normalizeSpec({ ...spec, exclude: isHidden ? spec.exclude.filter((x) => x !== open.dest.id) : [...spec.exclude, open.dest.id] });
             setStored(next);
-            setOpen(null);
+            closeTrip();
             run(next);
           }}
         />
@@ -254,9 +359,11 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
       )}
 
       <ChatDock
+        open={chatOpen}
+        onOpenChange={setChatOpen}
         context={() => chatContext({ spec, results: trips, near, starred: acts.starred.map((s) => s.trip), compare: acts.compare, page: 'planner' })}
         prompts={['Which of my top results is the best value and why?', 'Compare the places in my compare list', 'Find me somewhere with a beach under 150 all in', 'What could I do this weekend without flying?']}
-        onApply={(raw) => { const patch = { ...raw }; for (const k of ['budgetTotal', 'budgetTransport'] as const) { const v = patch[k]; if (typeof v === 'number') patch[k] = Math.round(toUsd(v, spec.currency)); } const next = normalizeSpec({ ...spec, ...patch, when: { ...spec.when, ...(patch.when ?? {}) }, modes: { ...spec.modes, ...(patch.modes ?? {}) }, weights: { ...spec.weights, ...(patch.weights ?? {}) } }); setStored(next); run(next); }}
+        onApply={(raw) => { const patch = { ...raw }; for (const k of ['budgetTotal', 'budgetTransport'] as const) { const v = patch[k]; if (typeof v === 'number') patch[k] = Math.round(toUsd(v, spec.currency)); } const next = normalizeSpec({ ...spec, ...patch, when: { ...spec.when, ...(patch.when ?? {}) }, modes: { ...spec.modes, ...(patch.modes ?? {}) }, weights: { ...spec.weights, ...(patch.weights ?? {}) } }); setStored(next); run(next); if (narrow) { setChatOpen(false); go('list'); } }}
       />
     </div>
   );

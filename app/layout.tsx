@@ -3,6 +3,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import './globals.css';
 import './compare.css';
+import './mobile.css';
 import type { Metadata, Viewport } from 'next';
 import TopBar from '@/components/TopBar';
 
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#e7e9e1' },
     { media: '(prefers-color-scheme: dark)', color: '#0e1620' },
