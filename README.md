@@ -57,6 +57,23 @@ GROQ_API_KEY=
 
 Photos are Wikipedia lead images (Wikimedia Commons), refreshed with `npm run data:images`.
 
+## Deploying
+
+- **Vercel**: unchanged. Pushes to `main` deploy with the normal `next build`.
+- **Cloudflare Workers** (free plan), via the [OpenNext adapter](https://opennext.js.org/cloudflare):
+
+```bash
+npx wrangler login
+npx wrangler secret put GROQ_API_KEY     # optional, as above
+npx wrangler secret put SERPAPI_KEY      # optional, as above
+npm run cf:deploy    # builds .open-next/ and deploys the "peregrine" worker
+npm run cf:preview   # same build, served locally by wrangler
+```
+
+Settings live in `wrangler.jsonc` and `open-next.config.ts`. The free plan allows 50 outgoing
+requests per search, so `MAX_SUBREQUESTS=50` there makes a search fetch fewer live FlixBus prices
+(the rest stay labelled estimates).
+
 ## Checks
 
 ```bash

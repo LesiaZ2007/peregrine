@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "peregrine",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "routes": [{ "pattern": "peregrine.lastivka.dev", "custom_domain": true }],
+  "preview_urls": false,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      // Self-reference binding used by the OpenNext adapter.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "peregrine"
+    }
+  ],
+  "vars": {
+    // The free Workers plan allows 50 outgoing requests per incoming request;
+    // searches fetch fewer live coach prices so they stay under it.
+    "MAX_SUBREQUESTS": "50"
+  },
+  "observability": { "enabled": true }
+  // Secrets (set with `npx wrangler secret put NAME`): GROQ_API_KEY, SERPAPI_KEY
+}

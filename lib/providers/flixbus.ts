@@ -22,6 +22,18 @@ interface CityHit { id: string; name: string; location: { lat: number; lon: numb
 export async function cityId(name: string, lat: number, lon: number): Promise<string | null> {
   const key = `${name}|${lat.toFixed(2)}|${lon.toFixed(2)}`;
   if (cityCache.has(key)) return cityCache.get(key)!;
+  // parallel lookups of the same city (e.g. the home base) share one request
+  let p = cityPending.get(key);
+  if (!p) {
+    p = lookupCity(key, name, lat, lon).finally(() => cityPending.delete(key));
+    cityPending.set(key, p);
+  }
+  return p;
+}
+
+const cityPending = new Map<string, Promise<string | null>>();
+
+async function lookupCity(key: string, name: string, lat: number, lon: number): Promise<string | null> {
   const clean = name.replace(/\s*\(.*\)\s*/g, '').trim();
   const res = await fetch(`${API}/search/autocomplete/cities?q=${encodeURIComponent(clean)}&lang=en&flixbus_cities_only=false`, {
     headers: HEADERS, signal: AbortSignal.timeout(10_000), cache: 'no-store',
