@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { chatContext } from '@/lib/brief';
 import { toUsd } from '@/lib/money';
 import { EMPTY_IDS, EMPTY_PRESETS, K, useStored, type SavedPreset } from '@/lib/store';
+import { DEMO_SPEC } from '@/lib/demo';
 import { useTripActions } from '@/lib/useTripActions';
 import type { SearchResult, SearchSpec, SortKey, Trip } from '@/lib/types';
 import PlanForm, { type CatalogEntry, type CountryEntry } from './PlanForm';
@@ -27,16 +28,16 @@ function useNarrow() {
   );
 }
 
-export default function Planner({ catalog, countries, hasLive }: { catalog: CatalogEntry[]; countries: CountryEntry[]; hasLive: boolean }) {
-  const [stored, setStored] = useStored<SearchSpec>(K.spec, DEFAULT_SPEC);
-  const [visited, setVisited] = useStored<string[]>(K.visited, EMPTY_IDS);
-  const [wishlist, setWishlist] = useStored<string[]>(K.wishlist, EMPTY_IDS);
-  const [beenCc] = useStored<string[]>(K.countries, EMPTY_IDS);
+export default function Planner({ catalog, countries, hasLive, demo = false }: { catalog: CatalogEntry[]; countries: CountryEntry[]; hasLive: boolean; demo?: boolean }) {
+  const [stored, setStored] = useStored<SearchSpec>(K.spec, demo ? DEMO_SPEC : DEFAULT_SPEC, demo);
+  const [visited, setVisited] = useStored<string[]>(K.visited, EMPTY_IDS, demo);
+  const [wishlist, setWishlist] = useStored<string[]>(K.wishlist, EMPTY_IDS, demo);
+  const [beenCc] = useStored<string[]>(K.countries, EMPTY_IDS, demo);
   const ccOf = useMemo(() => new Map(catalog.map((c) => [c.id, c.cc])), [catalog]);
   const beenCountries = useMemo(() => [...new Set([...beenCc, ...visited.map((id) => ccOf.get(id)).filter((x): x is string => !!x)])], [beenCc, visited, ccOf]);
-  const [presets, setPresets] = useStored<SavedPreset[]>(K.presets, EMPTY_PRESETS);
+  const [presets, setPresets] = useStored<SavedPreset[]>(K.presets, EMPTY_PRESETS, demo);
   const spec = useMemo(() => normalizeSpec(stored), [stored]);
-  const acts = useTripActions(spec.currency);
+  const acts = useTripActions(spec.currency, demo);
 
   const [res, setRes] = useState<Res | null>(null);
   const [ranFor, setRanFor] = useState<string>('');
@@ -76,7 +77,7 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
     setLoading(true);
     setError(null);
     try {
-      const body = { ...s, visited, wishlist, beenCountries };
+      const body = { ...s, visited, wishlist, beenCountries, ...(demo ? { demo: true } : {}) };
       const r = await fetch('/api/search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(`Search failed (${r.status})`);
       setRes((await r.json()) as Res);
@@ -146,6 +147,12 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
     // only when a new result set arrives
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [res]);
+  const didDemoRun = useRef(false);
+  useEffect(() => {
+    if (!demo || didDemoRun.current) return;
+    didDemoRun.current = true;
+    void run(DEMO_SPEC);
+  }, [demo, run]);
   const cur = spec.currency;
 
   function share() {
@@ -188,6 +195,11 @@ export default function Planner({ catalog, countries, hasLive }: { catalog: Cata
     <div className="planner" data-view={view}>
       <aside className="plan" aria-label="Trip settings" id="settings">
         <div className="plan-head">
+          {demo && (
+            <p className="mono" style={{ margin: '0 0 6px', fontSize: '0.78rem', color: 'var(--accent)' }}>
+              Demo · local only · <Link href="/">Open full planner →</Link>
+            </p>
+          )}
           <h1>Where can I get to?</h1>
           <p>Set a home base, say what you’re after, and Peregrine plots every cheap way out: rail, coach, air, sea and shared cars.</p>
         </div>

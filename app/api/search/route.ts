@@ -23,9 +23,13 @@ function busLimit(flightRequests: number): number {
 }
 
 export async function POST(req: Request) {
-  const spec = normalizeSpec(await req.json().catch(() => ({})));
+  const raw = await req.json().catch(() => ({}));
+  const spec = normalizeSpec(raw);
   const windows = tripWindows(spec.when);
   const plan = planLive(spec, windows);
+  if (raw && typeof raw === 'object' && (raw as { demo?: unknown }).demo === true) {
+    plan.google = [];
+  }
   const { fares, stats } = await gatherFlights(plan);
   const busMax = busLimit(plan.ryanair.length + (hasSerp() ? plan.google.length : 0));
   const result = runSearch(spec, { flights: fares });
