@@ -8,9 +8,25 @@ import type { Metadata, Viewport } from 'next';
 import TopBar from '@/components/TopBar';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://peregrine.lastivka.dev'),
   title: 'Peregrine — go anywhere, cheaply',
   description:
     'Find cheap, interesting trips from where you are: trains, coaches, flights, ferries and rideshares, with every setting yours to change.',
+  openGraph: {
+    type: 'website',
+    siteName: 'Peregrine',
+    title: 'Peregrine — go anywhere, cheaply',
+    description:
+      'Find cheap, interesting trips from where you are: trains, coaches, flights, ferries and rideshares, with every setting yours to change.',
+    images: [{ url: '/opengraph-image.png', width: 1200, height: 630, alt: 'Peregrine — cheap route finder and aeronautical chart' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Peregrine — go anywhere, cheaply',
+    description:
+      'Find cheap, interesting trips from where you are: trains, coaches, flights, ferries and rideshares, with every setting yours to change.',
+    images: ['/opengraph-image.png'],
+  },
   icons: { icon: '/icon.svg' },
 };
 

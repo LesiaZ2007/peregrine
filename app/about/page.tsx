@@ -64,6 +64,9 @@ export default function About() {
             <a href="https://ourairports.com/data/">OurAirports</a> (public domain). Map: Natural Earth via world-atlas. Town search:
             Open-Meteo geocoding. Fares: Ryanair, FlixBus, Google Flights via SerpApi.
           </p>
+          <p>
+            Part of the <a href="https://lastivka.dev/guide/peregrine/" rel="noopener">Lastivka field guide ↗</a>.
+          </p>
         </div>
       </section>
     </div>
