@@ -23,6 +23,9 @@ export default function NotFound() {
           <Link href="/demo" className="btn">
             Try Prague demo
           </Link>
+          <a href="https://lastivka.dev/guide/peregrine/" className="btn ghost" rel="noopener">
+            Back to Lastivka ↗
+          </a>
         </div>
       </div>
     </div>

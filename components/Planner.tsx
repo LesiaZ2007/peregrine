@@ -196,9 +196,11 @@ export default function Planner({ catalog, countries, hasLive, demo = false }: {
       <aside className="plan" aria-label="Trip settings" id="settings">
         <div className="plan-head">
           {demo && (
-            <p className="mono" style={{ margin: '0 0 6px', fontSize: '0.78rem', color: 'var(--accent)' }}>
-              Demo · local only · <Link href="/">Open full planner →</Link>
-            </p>
+            <div className="mono" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', margin: '0 0 8px', fontSize: '0.78rem', color: 'var(--accent)' }}>
+              <span>Demo · local only</span>
+              <Link href="/">Open full planner →</Link>
+              <a href="https://lastivka.dev/guide/peregrine/" rel="noopener">Field guide ↗</a>
+            </div>
           )}
           <h1>Where can I get to?</h1>
           <p>Set a home base, say what you’re after, and Peregrine plots every cheap way out: rail, coach, air, sea and shared cars.</p>
