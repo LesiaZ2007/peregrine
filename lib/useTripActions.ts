@@ -4,9 +4,9 @@ import { useCallback } from 'react';
 import { EMPTY_SAVED, EMPTY_TRIPS, K, MAX_COMPARE, useStored, type SavedTrip } from './store';
 import type { Currency, Trip } from './types';
 
-export function useTripActions(currency: Currency) {
-  const [starred, setStarred] = useStored<SavedTrip[]>(K.saved, EMPTY_SAVED);
-  const [compare, setCompare] = useStored<Trip[]>(K.compare, EMPTY_TRIPS);
+export function useTripActions(currency: Currency, demo = false) {
+  const [starred, setStarred] = useStored<SavedTrip[]>(K.saved, EMPTY_SAVED, demo);
+  const [compare, setCompare] = useStored<Trip[]>(K.compare, EMPTY_TRIPS, demo);
 
   const isStarred = useCallback((t: Trip) => starred.some((s) => s.trip.dest.id === t.dest.id), [starred]);
   const toggleStar = useCallback(

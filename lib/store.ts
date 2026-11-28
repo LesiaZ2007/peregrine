@@ -5,6 +5,8 @@ import type { SearchSpec, Trip } from './types';
 
 const listeners = new Map<string, Set<() => void>>();
 const memo = new Map<string, { raw: string | null; val: unknown }>();
+const demoMem = new Map<string, unknown>();
+const demoListeners = new Map<string, Set<() => void>>();
 
 function read<T>(key: string, fallback: T): T {
   let raw: string | null = null;
@@ -35,12 +37,18 @@ export function write<T>(key: string, val: T) {
   listeners.get(key)?.forEach((l) => l());
 }
 
-export function useStored<T>(key: string, fallback: T): [T, (v: T | ((p: T) => T)) => void] {
+export function useStored<T>(key: string, fallback: T, ephemeral = false): [T, (v: T | ((p: T) => T)) => void] {
   const subscribe = useCallback(
     (cb: () => void) => {
-      const set = listeners.get(key) ?? new Set();
+      const map = ephemeral ? demoListeners : listeners;
+      const set = map.get(key) ?? new Set();
       set.add(cb);
-      listeners.set(key, set);
+      map.set(key, set);
+      if (ephemeral) {
+        return () => {
+          set.delete(cb);
+        };
+      }
       const onStorage = (e: StorageEvent) => e.key === key && cb();
       window.addEventListener('storage', onStorage);
       return () => {
@@ -48,12 +56,22 @@ export function useStored<T>(key: string, fallback: T): [T, (v: T | ((p: T) => T
         window.removeEventListener('storage', onStorage);
       };
     },
-    [key],
+    [key, ephemeral],
   );
-  const val = useSyncExternalStore(subscribe, () => read(key, fallback), () => fallback);
+  const getSnapshot = () => (ephemeral ? (demoMem.has(key) ? (demoMem.get(key) as T) : fallback) : read(key, fallback));
+  const val = useSyncExternalStore(subscribe, getSnapshot, () => fallback);
   const set = useCallback(
-    (v: T | ((p: T) => T)) => write(key, typeof v === 'function' ? (v as (p: T) => T)(read(key, fallback)) : v),
-    [key, fallback],
+    (v: T | ((p: T) => T)) => {
+      if (ephemeral) {
+        const cur = demoMem.has(key) ? (demoMem.get(key) as T) : fallback;
+        const next = typeof v === 'function' ? (v as (p: T) => T)(cur) : v;
+        demoMem.set(key, next);
+        demoListeners.get(key)?.forEach((l) => l());
+        return;
+      }
+      write(key, typeof v === 'function' ? (v as (p: T) => T)(read(key, fallback)) : v);
+    },
+    [key, fallback, ephemeral],
   );
   return [val, set];
 }
